@@ -1,0 +1,4 @@
+/target
+/.tools/
+/sensor-bridge/bin/
+/sensor-bridge/obj/

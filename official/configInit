@@ -1,0 +1,8 @@
+CPU,CPU Package,Core (Tctl/Tdie)
+CPU Total, Total CPU Utility,Total CPU Usage
+CPU Core,Cores (Average)
+CPU Cores,CPU Package,Package
+GPU Core
+GPU Core,D3D 3D
+GPU Core
+GPU Power,GPU Package

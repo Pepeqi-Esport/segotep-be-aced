@@ -1,0 +1,32 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <!-- WinExe = no console window when spawned by the GUI -->
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AssemblyName>sensor-bridge</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="LibreHardwareMonitorLib">
+      <HintPath>..\official\LibreHardwareMonitorLib.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="HidSharp">
+      <HintPath>..\official\HidSharp.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="System.Management">
+      <HintPath>..\official\System.Management.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="System.CodeDom">
+      <HintPath>..\official\System.CodeDom.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="System.IO.Ports">
+      <HintPath>..\official\System.IO.Ports.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+  </ItemGroup>
+</Project>
