@@ -55,9 +55,10 @@ fn create_elevated_logon_task() -> anyhow::Result<()> {
     // Register-ScheduledTask is more reliable than `schtasks /RL HIGHEST /RU …`
     // (password / interactive-token edge cases). Must already be elevated.
     // Short delay gives USB HID + desktop a moment before we open the device.
+    // `--tray` keeps the window hidden — only the tray icon + device updates.
     let ps = format!(
         "$ErrorActionPreference='Stop'; \
-         $action = New-ScheduledTaskAction -Execute '{exe}'; \
+         $action = New-ScheduledTaskAction -Execute '{exe}' -Argument '--tray'; \
          $trigger = New-ScheduledTaskTrigger -AtLogOn -User '{user}'; \
          $trigger.Delay = 'PT10S'; \
          $principal = New-ScheduledTaskPrincipal -UserId '{user}' \

@@ -108,6 +108,8 @@ pub struct BeAcedApp {
     tray_hidden: bool,
     tray: Option<AppTray>,
     logo: egui::TextureHandle,
+    /// Autostart / `--tray`: hide to tray on the first frame.
+    start_in_tray: bool,
 }
 
 impl BeAcedApp {
@@ -117,9 +119,13 @@ impl BeAcedApp {
         tray: Option<AppTray>,
         logo: egui::TextureHandle,
         palette: Palette,
+        start_in_tray: bool,
     ) -> Self {
         // Clean up any leftover headless daemon from older builds.
-        background_service::stop();
+        // Keep it if we are about to hand off to tray immediately.
+        if !start_in_tray {
+            background_service::stop();
+        }
 
         let api = HidApi::new().ok();
         let mode = api
@@ -167,6 +173,7 @@ impl BeAcedApp {
             tray_hidden: false,
             tray,
             logo,
+            start_in_tray,
         }
     }
 
@@ -331,10 +338,15 @@ impl BeAcedApp {
     }
 }
 
-pub fn run_gui(cfg: AppConfig, config_path: PathBuf) -> eframe::Result<()> {
+pub fn run_gui(cfg: AppConfig, config_path: PathBuf, start_in_tray: bool) -> eframe::Result<()> {
     // Prevent a second GUI (and a second dead tray icon) from stacking.
     if !tray_helper::try_become_singleton() {
         return Ok(());
+    }
+
+    // When opened normally, refresh the logon task so older installs pick up `--tray`.
+    if !start_in_tray && autostart_helper::is_enabled() {
+        let _ = autostart_helper::set_enabled(true);
     }
 
     let options = eframe::NativeOptions {
@@ -343,6 +355,7 @@ pub fn run_gui(cfg: AppConfig, config_path: PathBuf) -> eframe::Result<()> {
             .with_min_inner_size([WIN_MIN_W, WIN_MIN_H])
             .with_title(WINDOW_TITLE)
             .with_decorations(true)
+            .with_visible(!start_in_tray)
             .with_icon(logo_helper::window_icon()),
         ..Default::default()
     };
@@ -365,6 +378,7 @@ pub fn run_gui(cfg: AppConfig, config_path: PathBuf) -> eframe::Result<()> {
                 tray,
                 logo,
                 palette,
+                start_in_tray,
             )))
         }),
     )
@@ -372,6 +386,15 @@ pub fn run_gui(cfg: AppConfig, config_path: PathBuf) -> eframe::Result<()> {
 
 impl eframe::App for BeAcedApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        // Login autostart (`--tray`): never show the window — tray + device only.
+        if self.start_in_tray {
+            self.start_in_tray = false;
+            ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
+            if self.tray.is_some() {
+                self.handoff_to_tray();
+            }
+        }
+
         // Another exe launch (or tray left-click) asked us to come back.
         if tray_helper::take_external_show_request() {
             self.resume_from_tray();

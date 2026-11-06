@@ -41,6 +41,10 @@ struct Cli {
     #[arg(long, global = true, default_value = "official")]
     official: PathBuf,
 
+    /// Start hidden in the system tray (used by login autostart)
+    #[arg(long, global = true)]
+    tray: bool,
+
     /// Force CLI help listing; without a subcommand the GUI opens
     #[command(subcommand)]
     command: Option<Commands>,
@@ -176,7 +180,7 @@ fn main() -> Result<()> {
 
     match cli.command {
         None | Some(Commands::Gui) => {
-            gui_view::run_gui(cfg, config_path)
+            gui_view::run_gui(cfg, config_path, cli.tray)
                 .map_err(|e| anyhow::anyhow!("GUI error: {e}"))?;
         }
         Some(Commands::List) => cmd_list()?,
