@@ -172,11 +172,12 @@ fn main() -> Result<()> {
         None
     };
     let config_path = payload_helper::config_path_beside_exe(&cli.config);
-    let cfg = AppConfig::resolve(Some(config_path), official)?;
+    let cfg = AppConfig::resolve(Some(config_path.clone()), official)?;
 
     match cli.command {
         None | Some(Commands::Gui) => {
-            gui_view::run_gui(cfg).map_err(|e| anyhow::anyhow!("GUI error: {e}"))?;
+            gui_view::run_gui(cfg, config_path)
+                .map_err(|e| anyhow::anyhow!("GUI error: {e}"))?;
         }
         Some(Commands::List) => cmd_list()?,
         Some(Commands::Info { mode }) => cmd_info(&cfg, mode)?,

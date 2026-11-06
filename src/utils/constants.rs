@@ -9,4 +9,6 @@ pub const LEGACY_PID: u16 = 40961; // 0xA001
 pub const WINDOW_TITLE: &str = "BeAced";
 
 pub const WIN_W: f32 = 760.0;
-pub const WIN_H: f32 = 680.0;
+pub const WIN_H: f32 = 760.0;
+pub const WIN_MIN_W: f32 = 680.0;
+pub const WIN_MIN_H: f32 = 720.0;

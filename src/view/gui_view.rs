@@ -1,9 +1,11 @@
 //! Modern Herd-inspired control window for BeAced.
 
+use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
 use eframe::egui::{
-    self, Align, Color32, CornerRadius, Frame, Layout, Margin, RichText, Sense, Stroke, Vec2,
+    self, Align, Color32, ComboBox, CornerRadius, Frame, Layout, Margin, RichText, Sense, Stroke,
+    Vec2,
 };
 use hidapi::{HidApi, HidDevice};
 
@@ -15,10 +17,8 @@ use crate::services::background_service;
 use crate::services::device_service::{detect_default_mode, open_be_aced, write_report};
 use crate::services::protocol_service::{build_report, DeviceMode};
 use crate::services::sensor_service::{SensorReader, SensorSnapshot};
-use crate::utils::constants::{WINDOW_TITLE, WIN_H, WIN_W};
-use crate::utils::theme::{
-    apply_herd_style, ACCENT, ACCENT_SOFT, BG, BORDER, CARD, MUTED, OK, TEXT, WARN,
-};
+use crate::utils::constants::{WINDOW_TITLE, WIN_H, WIN_MIN_H, WIN_MIN_W, WIN_W};
+use crate::utils::theme::{apply_theme, AppTheme, Palette};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Metric {
@@ -86,6 +86,10 @@ impl Metric {
 
 pub struct BeAcedApp {
     cfg: AppConfig,
+    config_path: PathBuf,
+    palette: Palette,
+    /// Last resolved dark/light — used to react when OS theme changes under System.
+    resolved_dark: bool,
     mode: DeviceMode,
     sensors: SensorReader,
     snap: SensorSnapshot,
@@ -107,7 +111,13 @@ pub struct BeAcedApp {
 }
 
 impl BeAcedApp {
-    pub fn new(cfg: AppConfig, tray: Option<AppTray>, logo: egui::TextureHandle) -> Self {
+    pub fn new(
+        cfg: AppConfig,
+        config_path: PathBuf,
+        tray: Option<AppTray>,
+        logo: egui::TextureHandle,
+        palette: Palette,
+    ) -> Self {
         // Clean up any leftover headless daemon from older builds.
         background_service::stop();
 
@@ -134,9 +144,13 @@ impl BeAcedApp {
 
         let interval = Duration::from_millis(cfg.interval_ms.max(200));
         let self_starting = autostart_helper::is_enabled();
+        let resolved_dark = palette.dark;
 
         Self {
             cfg,
+            config_path,
+            palette,
+            resolved_dark,
             mode,
             sensors,
             snap,
@@ -153,6 +167,31 @@ impl BeAcedApp {
             tray_hidden: false,
             tray,
             logo,
+        }
+    }
+
+    fn set_theme(&mut self, ctx: &egui::Context, theme: AppTheme) {
+        self.cfg.theme = theme;
+        self.palette = apply_theme(ctx, theme);
+        self.resolved_dark = self.palette.dark;
+        match self.cfg.save(&self.config_path) {
+            Ok(()) => {
+                self.status = format!("Theme: {}", theme.label());
+            }
+            Err(err) => {
+                self.status = format!("Theme save failed: {err}");
+            }
+        }
+    }
+
+    fn sync_system_theme(&mut self, ctx: &egui::Context) {
+        if self.cfg.theme != AppTheme::System {
+            return;
+        }
+        let next = Palette::resolve(AppTheme::System, ctx);
+        if next.dark != self.resolved_dark {
+            self.palette = apply_theme(ctx, AppTheme::System);
+            self.resolved_dark = self.palette.dark;
         }
     }
 
@@ -292,7 +331,7 @@ impl BeAcedApp {
     }
 }
 
-pub fn run_gui(cfg: AppConfig) -> eframe::Result<()> {
+pub fn run_gui(cfg: AppConfig, config_path: PathBuf) -> eframe::Result<()> {
     // Prevent a second GUI (and a second dead tray icon) from stacking.
     if !tray_helper::try_become_singleton() {
         return Ok(());
@@ -301,7 +340,7 @@ pub fn run_gui(cfg: AppConfig) -> eframe::Result<()> {
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
             .with_inner_size([WIN_W, WIN_H])
-            .with_min_inner_size([680.0, 620.0])
+            .with_min_inner_size([WIN_MIN_W, WIN_MIN_H])
             .with_title(WINDOW_TITLE)
             .with_decorations(true)
             .with_icon(logo_helper::window_icon()),
@@ -310,8 +349,8 @@ pub fn run_gui(cfg: AppConfig) -> eframe::Result<()> {
     eframe::run_native(
         WINDOW_TITLE,
         options,
-        Box::new(|cc| {
-            apply_herd_style(&cc.egui_ctx);
+        Box::new(move |cc| {
+            let palette = apply_theme(&cc.egui_ctx, cfg.theme);
             let logo = logo_helper::load_texture(&cc.egui_ctx);
             let tray = match tray_helper::install(&cc.egui_ctx) {
                 Ok(t) => Some(t),
@@ -320,7 +359,13 @@ pub fn run_gui(cfg: AppConfig) -> eframe::Result<()> {
                     None
                 }
             };
-            Ok(Box::new(BeAcedApp::new(cfg, tray, logo)))
+            Ok(Box::new(BeAcedApp::new(
+                cfg,
+                config_path,
+                tray,
+                logo,
+                palette,
+            )))
         }),
     )
 }
@@ -361,11 +406,14 @@ impl eframe::App for BeAcedApp {
         }
 
         self.tick();
+        self.sync_system_theme(ctx);
         // Keep pumping while tray-hidden so external show requests are handled.
         ctx.request_repaint_after(Duration::from_millis(250));
 
+        let p = self.palette;
+
         egui::CentralPanel::default()
-            .frame(Frame::NONE.fill(BG).inner_margin(Margin::same(20)))
+            .frame(Frame::NONE.fill(p.bg).inner_margin(Margin::same(20)))
             .show(ctx, |ui| {
                 // Header — brand logo is the primary mark
                 ui.horizontal(|ui| {
@@ -383,27 +431,23 @@ impl eframe::App for BeAcedApp {
                             RichText::new("BeAced")
                                 .size(26.0)
                                 .strong()
-                                .color(TEXT),
+                                .color(p.text),
                         );
                         ui.label(
                             RichText::new("Digital display companion")
                                 .size(13.0)
-                                .color(MUTED),
+                                .color(p.muted),
                         );
                     });
                     ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                         let connected = self.device.is_some();
                         let (dot, label) = if connected {
-                            (OK, "Connected")
+                            (p.ok, "Connected")
                         } else {
-                            (WARN, "Device offline")
+                            (p.warn, "Device offline")
                         };
                         Frame::NONE
-                            .fill(if connected {
-                                Color32::from_rgb(220, 252, 231)
-                            } else {
-                                Color32::from_rgb(254, 249, 195)
-                            })
+                            .fill(if connected { p.ok_bg } else { p.warn_bg })
                             .corner_radius(CornerRadius::same(255))
                             .inner_margin(Margin::symmetric(10, 5))
                             .show(ui, |ui| {
@@ -411,7 +455,7 @@ impl eframe::App for BeAcedApp {
                                     let (rect, _) =
                                         ui.allocate_exact_size(Vec2::splat(8.0), Sense::hover());
                                     ui.painter().circle_filled(rect.center(), 4.0, dot);
-                                    ui.label(RichText::new(label).size(12.0).color(TEXT));
+                                    ui.label(RichText::new(label).size(12.0).color(p.text));
                                 });
                             });
                     });
@@ -422,15 +466,15 @@ impl eframe::App for BeAcedApp {
                 ui.columns(2, |cols| {
                     // Left: metrics + settings
                     cols[0].vertical(|ui| {
-                        card(ui, "Metrics", |ui| {
+                        card(ui, &p, "Metrics", |ui| {
                             for m in self.visible_metrics() {
                                 let selected = self.active == m;
                                 let (val, unit) = self.metric_value(m);
                                 let row = Frame::NONE
-                                    .fill(if selected { ACCENT_SOFT } else { CARD })
+                                    .fill(if selected { p.accent_soft } else { p.card })
                                     .stroke(Stroke::new(
                                         1.0_f32,
-                                        if selected { ACCENT } else { BORDER },
+                                        if selected { p.accent } else { p.border },
                                     ))
                                     .corner_radius(CornerRadius::same(10))
                                     .inner_margin(Margin::symmetric(12, 10));
@@ -441,13 +485,13 @@ impl eframe::App for BeAcedApp {
                                                 ui.label(
                                                     RichText::new(m.group())
                                                         .size(11.0)
-                                                        .color(MUTED),
+                                                        .color(p.muted),
                                                 );
                                                 ui.label(
                                                     RichText::new(m.label())
                                                         .size(14.0)
                                                         .strong()
-                                                        .color(TEXT),
+                                                        .color(p.text),
                                                 );
                                             });
                                             ui.with_layout(
@@ -460,9 +504,9 @@ impl eframe::App for BeAcedApp {
                                                         .size(16.0)
                                                         .strong()
                                                         .color(if selected {
-                                                            ACCENT
+                                                            p.accent
                                                         } else {
-                                                            TEXT
+                                                            p.text
                                                         }),
                                                     );
                                                 },
@@ -480,10 +524,10 @@ impl eframe::App for BeAcedApp {
 
                         ui.add_space(12.0);
 
-                        card(ui, "Settings", |ui| {
-                            ui.set_min_height(140.0);
+                        card(ui, &p, "Settings", |ui| {
+                            ui.set_min_height(220.0);
                             let prev_screen = self.screen_on;
-                            toggle_row(ui, "Display on", &mut self.screen_on);
+                            toggle_row(ui, &p, "Display on", &mut self.screen_on);
                             if self.screen_on != prev_screen {
                                 self.push_hid();
                             }
@@ -491,7 +535,7 @@ impl eframe::App for BeAcedApp {
                             ui.add_space(8.0);
                             let mut auto = self.self_starting;
                             let before = auto;
-                            toggle_row(ui, "Launch on startup", &mut auto);
+                            toggle_row(ui, &p, "Launch on startup", &mut auto);
                             if auto != before {
                                 match autostart_helper::set_enabled(auto) {
                                     Ok(()) => {
@@ -509,22 +553,41 @@ impl eframe::App for BeAcedApp {
                                 }
                             }
 
+                            ui.add_space(10.0);
+                            ui.horizontal(|ui| {
+                                ui.label(RichText::new("Theme").size(14.0).color(p.text));
+                                ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                                    let mut selected = self.cfg.theme;
+                                    ComboBox::from_id_salt("theme_pref")
+                                        .selected_text(selected.label())
+                                        .width(110.0)
+                                        .show_ui(ui, |ui| {
+                                            for t in AppTheme::ALL {
+                                                ui.selectable_value(&mut selected, t, t.label());
+                                            }
+                                        });
+                                    if selected != self.cfg.theme {
+                                        self.set_theme(ctx, selected);
+                                    }
+                                });
+                            });
+
                             ui.add_space(12.0);
                             ui.label(
                                 RichText::new(
                                     "Close keeps the display updating in the tray. Click the tray icon to open again.",
                                 )
                                 .size(11.0)
-                                .color(MUTED),
+                                .color(p.muted),
                             );
                             ui.add_space(8.0);
                             if ui
                                 .add(
                                     egui::Button::new(
-                                        RichText::new("Quit completely").size(13.0).color(ACCENT),
+                                        RichText::new("Quit completely").size(13.0).color(p.accent),
                                     )
                                     .fill(Color32::TRANSPARENT)
-                                    .stroke(Stroke::new(1.0_f32, BORDER)),
+                                    .stroke(Stroke::new(1.0_f32, p.border)),
                                 )
                                 .clicked()
                             {
@@ -535,12 +598,12 @@ impl eframe::App for BeAcedApp {
 
                     // Right: hero reading + status
                     cols[1].vertical(|ui| {
-                        card(ui, "Live reading", |ui| {
+                        card(ui, &p, "Live reading", |ui| {
                             let (val, unit) = self.metric_value(self.active);
                             ui.label(
                                 RichText::new(self.active.label())
                                     .size(13.0)
-                                    .color(MUTED),
+                                    .color(p.muted),
                             );
                             ui.add_space(4.0);
                             ui.horizontal(|ui| {
@@ -548,10 +611,10 @@ impl eframe::App for BeAcedApp {
                                     RichText::new(format!("{val:.0}"))
                                         .size(56.0)
                                         .strong()
-                                        .color(TEXT),
+                                        .color(p.text),
                                 );
                                 ui.label(
-                                    RichText::new(unit).size(22.0).color(MUTED),
+                                    RichText::new(unit).size(22.0).color(p.muted),
                                 );
                             });
                             ui.add_space(8.0);
@@ -562,20 +625,20 @@ impl eframe::App for BeAcedApp {
                                     self.active.short()
                                 ))
                                 .size(12.0)
-                                .color(MUTED),
+                                .color(p.muted),
                             );
                         });
 
                         ui.add_space(12.0);
 
-                        card(ui, "Overview", |ui| {
-                            overview_line(ui, "CPU", &format!(
+                        card(ui, &p, "Overview", |ui| {
+                            overview_line(ui, &p, "CPU", &format!(
                                 "{:.0}°C · {:.0}% · {:.0}W",
                                 self.snap.cpu_temperature,
                                 self.snap.cpu_load,
                                 self.snap.cpu_power
                             ));
-                            overview_line(ui, "GPU", &format!(
+                            overview_line(ui, &p, "GPU", &format!(
                                 "{:.0}°C · {:.0}% · {:.0}W",
                                 self.snap.gpu_temperature,
                                 self.snap.gpu_load,
@@ -583,6 +646,7 @@ impl eframe::App for BeAcedApp {
                             ));
                             overview_line(
                                 ui,
+                                &p,
                                 "Device",
                                 &format!("{:?} · {}", self.mode, self.cfg.flash.product),
                             );
@@ -591,7 +655,7 @@ impl eframe::App for BeAcedApp {
                         ui.add_space(12.0);
 
                         if !self.status.is_empty() {
-                            ui.label(RichText::new(&self.status).size(12.0).color(MUTED));
+                            ui.label(RichText::new(&self.status).size(12.0).color(p.muted));
                         }
                     });
                 });
@@ -599,37 +663,42 @@ impl eframe::App for BeAcedApp {
     }
 }
 
-fn card(ui: &mut egui::Ui, title: &str, add_contents: impl FnOnce(&mut egui::Ui)) {
+fn card(
+    ui: &mut egui::Ui,
+    p: &Palette,
+    title: &str,
+    add_contents: impl FnOnce(&mut egui::Ui),
+) {
     Frame::NONE
-        .fill(CARD)
-        .stroke(Stroke::new(1.0_f32, BORDER))
+        .fill(p.card)
+        .stroke(Stroke::new(1.0_f32, p.border))
         .corner_radius(CornerRadius::same(14))
         .inner_margin(Margin::same(16))
         .show(ui, |ui| {
-            ui.label(RichText::new(title).size(12.0).strong().color(MUTED));
+            ui.label(RichText::new(title).size(12.0).strong().color(p.muted));
             ui.add_space(10.0);
             add_contents(ui);
         });
 }
 
-fn overview_line(ui: &mut egui::Ui, label: &str, value: &str) {
+fn overview_line(ui: &mut egui::Ui, p: &Palette, label: &str, value: &str) {
     ui.horizontal(|ui| {
-        ui.label(RichText::new(label).size(13.0).color(MUTED));
+        ui.label(RichText::new(label).size(13.0).color(p.muted));
         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-            ui.label(RichText::new(value).size(13.0).strong().color(TEXT));
+            ui.label(RichText::new(value).size(13.0).strong().color(p.text));
         });
     });
     ui.add_space(6.0);
 }
 
-fn toggle_row(ui: &mut egui::Ui, label: &str, on: &mut bool) {
+fn toggle_row(ui: &mut egui::Ui, p: &Palette, label: &str, on: &mut bool) {
     ui.horizontal(|ui| {
-        ui.label(RichText::new(label).size(14.0).color(TEXT));
+        ui.label(RichText::new(label).size(14.0).color(p.text));
         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
             let desired = Vec2::new(44.0, 26.0);
             let (rect, resp) = ui.allocate_exact_size(desired, Sense::click());
             let t = if *on { 1.0 } else { 0.0 };
-            let track = if *on { ACCENT } else { Color32::from_rgb(212, 212, 216) };
+            let track = if *on { p.accent } else { p.toggle_off };
             ui.painter()
                 .rect_filled(rect, CornerRadius::same(255), track);
             let knob_r = 10.0;

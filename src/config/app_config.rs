@@ -7,14 +7,20 @@ use std::path::{Path, PathBuf};
 
 use super::flash_profile::FlashProfile;
 use super::sensor_mapping::SensorMapping;
+use crate::utils::theme::AppTheme;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppConfig {
     pub interval_ms: u64,
+    /// UI theme: light / dark / system (follows OS).
+    #[serde(default)]
+    pub theme: AppTheme,
     pub flash: FlashProfile,
     pub sensors: SensorMapping,
     /// Optional override; when unset the daemon matches by product name / known VID:PID.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub vendor_id: Option<u16>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub product_id: Option<u16>,
 }
 
@@ -22,6 +28,7 @@ impl Default for AppConfig {
     fn default() -> Self {
         Self {
             interval_ms: 1000,
+            theme: AppTheme::System,
             flash: FlashProfile::default(),
             sensors: SensorMapping::default(),
             vendor_id: None,
@@ -44,7 +51,12 @@ impl AppConfig {
     }
 
     pub fn write_default(path: &Path) -> Result<()> {
-        let text = toml::to_string_pretty(&Self::default())?;
+        Self::default().save(path)
+    }
+
+    /// Persist current settings (theme, flash, sensors, …) to `path`.
+    pub fn save(&self, path: &Path) -> Result<()> {
+        let text = toml::to_string_pretty(self)?;
         if let Some(parent) = path.parent() {
             fs::create_dir_all(parent)?;
         }
