@@ -1,10 +1,8 @@
 //! Launch-on-startup via Task Scheduler with highest privileges.
 //!
-//! A plain HKCU Run key would start the app unelevated and hit the admin popup
-//! every login — so we use `schtasks /RL HIGHEST` instead.
-//!
-//! Enable: wipe registry / old task / service / Startup shortcut, then create task.
-//! Disable: remove from all of those locations.
+//! A plain HKCU Run key starts the app unelevated → "must run as Administrator"
+//! popup every login, and the display never gets sensor/HID access.
+//! We use an AtLogOn task with RunLevel Highest instead (no UAC at login).
 
 use std::fs;
 use std::os::windows::process::CommandExt;
@@ -20,9 +18,9 @@ use windows::Win32::System::Registry::{
 
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
-/// Value under `HKCU\...\Run` — visible in Task Manager → Startup apps.
+/// Value under `HKCU\...\Run` — leftover from older builds (cleanup only).
 const RUN_VALUE: &str = "BeAced";
-/// Legacy Task Scheduler name from earlier builds.
+/// Task Scheduler name.
 const TASK_NAME: &str = "segotep-be-aced_AutoStart";
 /// Possible Windows service name (cleaned if present; we do not install one).
 const SERVICE_NAME: &str = "segotep-be-aced";
@@ -42,46 +40,51 @@ pub fn set_enabled(enable: bool) -> anyhow::Result<()> {
 
 fn create_elevated_logon_task() -> anyhow::Result<()> {
     let exe = std::env::current_exe()?;
-    let tr = format!("\"{}\"", exe.to_string_lossy());
+    let exe = exe.to_string_lossy().replace('\'', "''");
     let user = match (
         std::env::var("USERDOMAIN").ok(),
         std::env::var("USERNAME").ok(),
     ) {
-        (Some(domain), Some(name)) if !domain.is_empty() => format!("{domain}\\{name}"),
-        (_, Some(name)) => name,
-        _ => String::from("SYSTEM"),
+        (Some(domain), Some(name)) if !domain.is_empty() => {
+            format!("{domain}\\{name}").replace('\'', "''")
+        }
+        (_, Some(name)) => name.replace('\'', "''"),
+        _ => anyhow::bail!("cannot resolve current Windows user for scheduled task"),
     };
-    let create = schtasks(&[
-        "/Create",
-        "/F",
-        "/RL",
-        "HIGHEST",
-        "/SC",
-        "ONLOGON",
-        "/TN",
-        TASK_NAME,
-        "/TR",
-        &tr,
-        "/RU",
-        &user,
-    ])?;
-    if !create.status.success() {
-        let err = String::from_utf8_lossy(&create.stderr);
-        let out = String::from_utf8_lossy(&create.stdout);
-        anyhow::bail!("schtasks create failed: {err}{out}");
-    }
-    let _ = Command::new("powershell.exe")
-        .args([
-            "-NoProfile",
-            "-WindowStyle",
-            "Hidden",
-            "-Command",
-            &format!(
-                "Set-ScheduledTask -TaskName '{TASK_NAME}' -Settings (New-ScheduledTaskSettingsSet -ExecutionTimeLimit 0)"
-            ),
-        ])
+
+    // Register-ScheduledTask is more reliable than `schtasks /RL HIGHEST /RU …`
+    // (password / interactive-token edge cases). Must already be elevated.
+    // Short delay gives USB HID + desktop a moment before we open the device.
+    let ps = format!(
+        "$ErrorActionPreference='Stop'; \
+         $action = New-ScheduledTaskAction -Execute '{exe}'; \
+         $trigger = New-ScheduledTaskTrigger -AtLogOn -User '{user}'; \
+         $trigger.Delay = 'PT10S'; \
+         $principal = New-ScheduledTaskPrincipal -UserId '{user}' \
+           -LogonType Interactive -RunLevel Highest; \
+         $settings = New-ScheduledTaskSettingsSet \
+           -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries \
+           -ExecutionTimeLimit ([TimeSpan]::Zero) \
+           -MultipleInstances IgnoreNew \
+           -StartWhenAvailable; \
+         Register-ScheduledTask -TaskName '{TASK_NAME}' -Action $action \
+           -Trigger $trigger -Principal $principal -Settings $settings -Force | Out-Null"
+    );
+
+    let output = Command::new("powershell.exe")
+        .args(["-NoProfile", "-WindowStyle", "Hidden", "-Command", &ps])
         .creation_flags(CREATE_NO_WINDOW)
-        .output();
+        .output()?;
+
+    if !output.status.success() {
+        let err = String::from_utf8_lossy(&output.stderr);
+        let out = String::from_utf8_lossy(&output.stdout);
+        anyhow::bail!("failed to create elevated logon task: {err}{out}");
+    }
+
+    if !task_exists() {
+        anyhow::bail!("elevated logon task was not created");
+    }
     Ok(())
 }
 
@@ -189,7 +192,7 @@ fn query_run_value(key: HKEY, name: &[u16]) -> Option<String> {
     }
 }
 
-// —— Task Scheduler (legacy cleanup) ——————————————————————————————————————
+// —— Task Scheduler ———————————————————————————————————————————————————————
 
 fn schtasks(args: &[&str]) -> std::io::Result<std::process::Output> {
     Command::new("schtasks.exe")
@@ -205,10 +208,20 @@ fn task_exists() -> bool {
 }
 
 fn remove_scheduled_task() -> anyhow::Result<()> {
-    if !task_exists() {
-        return Ok(());
-    }
-    let _ = schtasks(&["/Delete", "/F", "/TN", TASK_NAME])?;
+    // Prefer PowerShell so we can delete even if query naming differs slightly.
+    let _ = Command::new("powershell.exe")
+        .args([
+            "-NoProfile",
+            "-WindowStyle",
+            "Hidden",
+            "-Command",
+            &format!(
+                "Unregister-ScheduledTask -TaskName '{TASK_NAME}' -Confirm:$false -ErrorAction SilentlyContinue"
+            ),
+        ])
+        .creation_flags(CREATE_NO_WINDOW)
+        .output();
+    let _ = schtasks(&["/Delete", "/F", "/TN", TASK_NAME]);
     Ok(())
 }
 

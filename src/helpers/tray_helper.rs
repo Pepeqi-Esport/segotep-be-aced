@@ -387,30 +387,5 @@ pub fn show_window() {
 }
 
 fn make_icon() -> tray_icon::Icon {
-    const SIZE: u32 = 32;
-    let mut rgba = vec![0u8; (SIZE * SIZE * 4) as usize];
-    let cx = (SIZE as f32 - 1.0) / 2.0;
-    let cy = cx;
-    let r_outer = SIZE as f32 * 0.42;
-    let r_inner = SIZE as f32 * 0.16;
-    for y in 0..SIZE {
-        for x in 0..SIZE {
-            let dx = x as f32 - cx;
-            let dy = y as f32 - cy;
-            let d = (dx * dx + dy * dy).sqrt();
-            let i = ((y * SIZE + x) * 4) as usize;
-            if d <= r_outer {
-                rgba[i] = 225;
-                rgba[i + 1] = 29;
-                rgba[i + 2] = 72;
-                rgba[i + 3] = 255;
-                if d <= r_inner {
-                    rgba[i] = 255;
-                    rgba[i + 1] = 255;
-                    rgba[i + 2] = 255;
-                }
-            }
-        }
-    }
-    tray_icon::Icon::from_rgba(rgba, SIZE, SIZE).expect("tray icon")
+    crate::helpers::logo_helper::tray_icon()
 }

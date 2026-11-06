@@ -21,6 +21,8 @@ fn main() {
     println!("cargo:rerun-if-changed=sensor-bridge/sensor-bridge.csproj");
     println!("cargo:rerun-if-changed=build.rs");
     println!("cargo:rerun-if-changed=be-aced.toml");
+    println!("cargo:rerun-if-changed=assets/images/logo/app.ico");
+    println!("cargo:rerun-if-changed=assets/images/logo/logo.png");
 
     let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
     let payload_dir = out_dir.join("payload");
@@ -37,9 +39,25 @@ fn main() {
 
 fn embed_admin_manifest() {
     let mut res = winres::WindowsResource::new();
-    // asInvoker: allow start without UAC so we can show our own "must run as admin" popup.
-    // Elevation is enforced in `admin::require_administrator()` at process start.
-    // Launch-on-startup uses a Highest-privileges scheduled task instead.
+    // Prefer a classic BMP-format .ico (not PNG-compressed). mingw windres
+    // often links PNG ICOs without a usable RT_GROUP_ICON, so Explorer shows
+    // the default exe glyph.
+    let icon = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap())
+        .join("assets")
+        .join("images")
+        .join("logo")
+        .join("app.ico");
+    if icon.is_file() {
+        // windres is picky about separators in the generated .rc path.
+        let icon_path = icon.to_string_lossy().replace('/', "\\");
+        println!("cargo:warning=embedding app icon: {icon_path}");
+        res.set_icon(&icon_path);
+    } else {
+        println!("cargo:warning=app icon missing at {}", icon.display());
+    }
+    // asInvoker: allow start without an immediate OS UAC dialog so we can
+    // relaunch via ShellExecute "runas" (or show our own popup if declined).
+    // Launch-on-startup uses a Highest-privileges scheduled task (no UAC at login).
     res.set_manifest(
         r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <assembly xmlns="urn:schemas-microsoft-com:asm.v1" manifestVersion="1.0">
@@ -63,6 +81,22 @@ fn embed_admin_manifest() {
     );
     if let Err(err) = res.compile() {
         println!("cargo:warning=winres manifest embed failed: {err}");
+        return;
+    }
+
+    // windows-gnu: ld drops `.rsrc` when it only comes from a static `.a`.
+    // Linking `resource.o` directly is required so the PE actually gets
+    // RT_GROUP_ICON / VERSION / manifest (otherwise Explorer shows the default icon).
+    let resource_obj = PathBuf::from(env::var("OUT_DIR").unwrap()).join("resource.o");
+    if resource_obj.is_file() {
+        let path = resource_obj.to_string_lossy().replace('/', "\\");
+        println!("cargo:rustc-link-arg={path}");
+        println!("cargo:warning=linking resource object: {path}");
+    } else {
+        println!(
+            "cargo:warning=resource.o missing after winres (icon may not embed): {}",
+            resource_obj.display()
+        );
     }
 }
 

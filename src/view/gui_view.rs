@@ -9,6 +9,7 @@ use hidapi::{HidApi, HidDevice};
 
 use crate::config::AppConfig;
 use crate::helpers::autostart_helper;
+use crate::helpers::logo_helper;
 use crate::helpers::tray_helper::{self, AppTray, TrayAction};
 use crate::services::background_service;
 use crate::services::device_service::{detect_default_mode, open_be_aced, write_report};
@@ -102,10 +103,11 @@ pub struct BeAcedApp {
     /// Window is hidden; a headless daemon owns the HID device.
     tray_hidden: bool,
     tray: Option<AppTray>,
+    logo: egui::TextureHandle,
 }
 
 impl BeAcedApp {
-    pub fn new(cfg: AppConfig, tray: Option<AppTray>) -> Self {
+    pub fn new(cfg: AppConfig, tray: Option<AppTray>, logo: egui::TextureHandle) -> Self {
         // Clean up any leftover headless daemon from older builds.
         background_service::stop();
 
@@ -150,6 +152,7 @@ impl BeAcedApp {
             quit_fully: false,
             tray_hidden: false,
             tray,
+            logo,
         }
     }
 
@@ -300,7 +303,8 @@ pub fn run_gui(cfg: AppConfig) -> eframe::Result<()> {
             .with_inner_size([WIN_W, WIN_H])
             .with_min_inner_size([680.0, 620.0])
             .with_title(WINDOW_TITLE)
-            .with_decorations(true),
+            .with_decorations(true)
+            .with_icon(logo_helper::window_icon()),
         ..Default::default()
     };
     eframe::run_native(
@@ -308,6 +312,7 @@ pub fn run_gui(cfg: AppConfig) -> eframe::Result<()> {
         options,
         Box::new(|cc| {
             apply_herd_style(&cc.egui_ctx);
+            let logo = logo_helper::load_texture(&cc.egui_ctx);
             let tray = match tray_helper::install(&cc.egui_ctx) {
                 Ok(t) => Some(t),
                 Err(err) => {
@@ -315,7 +320,7 @@ pub fn run_gui(cfg: AppConfig) -> eframe::Result<()> {
                     None
                 }
             };
-            Ok(Box::new(BeAcedApp::new(cfg, tray)))
+            Ok(Box::new(BeAcedApp::new(cfg, tray, logo)))
         }),
     )
 }
@@ -362,9 +367,18 @@ impl eframe::App for BeAcedApp {
         egui::CentralPanel::default()
             .frame(Frame::NONE.fill(BG).inner_margin(Margin::same(20)))
             .show(ctx, |ui| {
-                // Header
+                // Header — brand logo is the primary mark
                 ui.horizontal(|ui| {
+                    ui.add(
+                        egui::Image::from_texture(egui::load::SizedTexture::new(
+                            self.logo.id(),
+                            Vec2::splat(56.0),
+                        ))
+                        .sense(Sense::hover()),
+                    );
+                    ui.add_space(10.0);
                     ui.vertical(|ui| {
+                        ui.add_space(6.0);
                         ui.label(
                             RichText::new("BeAced")
                                 .size(26.0)
