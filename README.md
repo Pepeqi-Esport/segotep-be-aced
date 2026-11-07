@@ -1,29 +1,33 @@
-# segotep-be-aced
+# Segotep BeAced Digital Display Control
 
 Rust reimplementation of Segotep **BeAced** digital-display control.
 
-- **GUI** (default): borderless 500×450 window laid out like official `LEDDisplay`
-  (metric buttons, sensor list, screen toggle; English only) — assets redrawn, not copied
-- **CLI** still available for headless use
-- Vendor binaries stay under [`official/`](official/) (read-only reference)
+* **GUI** (default): egui window (~760×760) with live metrics, display toggle, theme, and launch-on-startup — assets redrawn, not copied
+* Close minimizes to the **system tray** (display keeps updating); use **Quit completely** to exit
+* **CLI** still available for headless use
+* Vendor binaries stay under [`official/`](official/) (read-only reference)
 
 ## Features
 
-- GUI — official-like control window (opens when run with no args)
-- `list` — enumerate HID devices and highlight BeAced IDs
-- `info` — flash profile + matched device + live sensor snapshot
-- `daemon` — headless poll + HID push
-- `screen on|off` — one-shot screen toggle report
-- `validate` — dump packets for USB capture comparison
+* GUI — control window (opens when run with no args, or `gui`)
+* `--tray` — start hidden in the system tray (used by login autostart)
+* `list` — enumerate HID devices and highlight BeAced IDs
+* `info` — flash profile + matched device + live sensor snapshot
+* `daemon` — headless poll + HID push (`--once`,  `--dry-run`,  `--screen-off`,  `--background`)
+* `screen on|off` — one-shot screen toggle report
+* `validate` — dump packets for USB capture comparison
+* `init-config` — write default `config.json` + `theme.json` beside the exe if missing
 
 ## Protocol summary
 
-BeAced uses the official **screen** path (`official/screen` marker present):
+Two HID paths (auto-detected; override with `--mode` ):
 
-| | |
-|---|---|
-| VID:PID | `0x0416:0x6001` (Nuvoton) |
-| Report | 11 bytes, see [`docs/protocol.md`](docs/protocol.md) |
+| Mode | VID: PID | Report | Official path |
+|------|---------|--------|---------------|
+| `screen` (default when `official/screen` marker present) | `0x0416:0x6001` (Nuvoton) | 11 bytes | `SendScreenValues` |
+| `legacy` | `0x1A86:0xA001` | 34 bytes | `SendLatestValues` |
+
+Packet builders live in [ `src/services/protocol_service.rs` ](src/services/protocol_service.rs).
 
 ## Build
 
@@ -31,8 +35,7 @@ BeAced uses the official **screen** path (`official/screen` marker present):
 cargo build --release
 ```
 
-That single command also builds `sensor-bridge` (LibreHardwareMonitor) and copies it
-next to `target/release/segotep-be-aced.exe`. Needs **MSVC** + **.NET 8 SDK** on PATH.
+That command also builds `sensor-bridge` (LibreHardwareMonitor) and embeds it into the exe (extracted beside the binary on first run). Needs **MSVC** (or a Windows Rust toolchain) + **. NET 8 SDK** on PATH for the bridge build.
 
 Then run:
 
@@ -40,7 +43,7 @@ Then run:
 .\target\release\segotep-be-aced.exe
 ```
 
-Approve the UAC prompt (Administrator) — required for CPU temperature/power, same as official.
+Approve the UAC prompt (Administrator) — required for CPU temperature/power and reliable HID access, same as official. The app also checks for the **. NET 8 Windows Desktop** runtime used by `sensor-bridge` and can offer to install it.
 
 ## Usage
 
@@ -50,7 +53,10 @@ cargo run --release
 # or
 cargo run --release -- gui
 
-# optional: write default config next to cwd
+# start hidden in tray (login autostart uses this)
+cargo run --release -- --tray
+
+# optional: ensure default config/theme beside the exe
 cargo run -- init-config
 
 # CLI helpers
@@ -63,8 +69,18 @@ cargo run -- validate --mode screen
 
 Close the official Segotep Digital app before using this tool so HID access is free.
 
-Config file: [`be-aced.toml`](be-aced.toml) (root). Sensor labels / flash profile can
-also be read **read-only** from `official/config` and `official/flashValue`.
+### Config
+
+Runtime files live **beside the exe** (created on first run):
+
+| File | Purpose |
+|------|---------|
+| [ `config.json` ](config.json) | Poll interval, flash profile, sensor label mapping |
+| [ `theme.json` ](theme.json) | UI theme ( `system` / `light` / `dark` ) |
+
+Legacy [ `be-aced.toml` ](be-aced.toml) is migrated automatically into those JSON files when present.
+
+Sensor labels / flash profile can also be merged **read-only** from `official/config` and `official/flashValue` when `--official` (default: `official` ) exists.
 
 ```bash
 RUST_LOG=debug cargo run -- daemon --once
@@ -72,24 +88,28 @@ RUST_LOG=debug cargo run -- daemon --once
 
 ## Notes
 
-- Close the official app before `daemon` / `screen` — it may hold the HID device exclusively.
-- CPU temperature/load/clock come from `sysinfo`. Package power and rich GPU sensors are limited without LibreHardwareMonitor; values default to `0` when unavailable.
-- Run elevated if Windows blocks sensor or HID access on your setup.
+* Close the official app before `daemon` / `screen` — it may hold the HID device exclusively.
+* CPU temperature / load / clock / package power come from `sysinfo` + `sensor-bridge` (LibreHardwareMonitor). Values default to `0` when unavailable.
+* Closing the window keeps a background daemon + tray icon; quit from the tray menu or **Quit completely** in Settings.
+* Launch on startup registers a scheduled task that starts elevated with `--tray` (no UAC prompt at login).
 
 ## Layout
 
 ```text
 .
-├── official/          # vendor app (do not modify)
-├── docs/protocol.md   # HID notes from decompile + capture
-├── be-aced.toml       # runtime config
+├── official/              # vendor app (do not modify)
+├── sensor-bridge/         # .NET 8 LibreHardwareMonitor sidecar
+├── assets/images/logo/    # app icon + in-window logo
+├── config.json            # runtime device/sensor settings
+├── theme.json             # UI theme preference
+├── be-aced.toml           # legacy config (auto-migrated)
+├── build.rs               # embed icon, bridge payload, admin manifest
 ├── Cargo.toml
 └── src/
-    ├── main.rs
-    ├── gui.rs          # official-like window
-    ├── config.rs
-    ├── device.rs
-    ├── protocol.rs
-    ├── sensors.rs
-    └── daemon.rs
+    ├── main.rs            # CLI + entry
+    ├── config/            # AppConfig, flash, sensors, theme
+    ├── services/          # HID, protocol, sensors, daemon, background
+    ├── helpers/           # admin, tray, autostart, payload, storage
+    ├── utils/             # constants, theme palette
+    └── views/             # egui pages / layouts / components
 ```
