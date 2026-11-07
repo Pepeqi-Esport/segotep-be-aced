@@ -25,7 +25,6 @@ use crate::services::device_service::{detect_default_mode, enumerate_devices};
 use crate::services::protocol_service::{format_hex, DeviceMode};
 use crate::services::sensor_service::SensorReader;
 use crate::utils::constants::{LEGACY_PID, LEGACY_VID, SCREEN_PID, SCREEN_VID};
-use crate::view::gui_view;
 
 #[derive(Debug, Parser)]
 #[command(
@@ -180,7 +179,7 @@ fn main() -> Result<()> {
 
     match cli.command {
         None | Some(Commands::Gui) => {
-            gui_view::run_gui(cfg, config_path, cli.tray)
+            crate::view::run_gui(cfg, config_path, cli.tray)
                 .map_err(|e| anyhow::anyhow!("GUI error: {e}"))?;
         }
         Some(Commands::List) => cmd_list()?,
