@@ -1,8 +1,9 @@
-mod app_config;
+mod app;
 mod flash_profile;
 mod sensor_mapping;
+mod theme;
 
-pub use app_config::AppConfig;
+pub use app::AppConfig;
 pub use flash_profile::FlashProfile;
-#[allow(unused_imports)]
 pub use sensor_mapping::SensorMapping;
+pub use theme::ThemeConfig;

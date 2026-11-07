@@ -1,14 +1,18 @@
 use eframe::egui::{
-    self, Align, CornerRadius, Frame, Layout, Margin, RichText, Sense, TextureId, Vec2,
+    self, Align, CornerRadius, Frame, Layout, Margin, RichText, Sense, TextureHandle, Vec2,
 };
 
-use crate::utils::theme::Palette;
+use crate::views::pages::HomePage;
 
-pub fn header(ui: &mut egui::Ui, p: &Palette, logo: TextureId, connected: bool) {
+pub fn app_header(ui: &mut egui::Ui, page: &HomePage, logo: &TextureHandle) {
+    let p = page.palette();
     ui.horizontal(|ui| {
         ui.add(
-            egui::Image::from_texture(egui::load::SizedTexture::new(logo, Vec2::splat(56.0)))
-                .sense(Sense::hover()),
+            egui::Image::from_texture(egui::load::SizedTexture::new(
+                logo.id(),
+                Vec2::splat(56.0),
+            ))
+            .sense(Sense::hover()),
         );
         ui.add_space(10.0);
         ui.vertical(|ui| {
@@ -26,6 +30,7 @@ pub fn header(ui: &mut egui::Ui, p: &Palette, logo: TextureId, connected: bool) 
             );
         });
         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+            let connected = page.device.is_some();
             let (dot, label) = if connected {
                 (p.ok, "Connected")
             } else {

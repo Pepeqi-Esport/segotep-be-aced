@@ -1,20 +1,17 @@
-//! Root `be-aced.toml` settings + resolve from optional official/ folder.
+//! Device / sensor settings persisted as `config.json` beside the exe.
 
-use anyhow::{Context, Result};
+use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
 
 use super::flash_profile::FlashProfile;
 use super::sensor_mapping::SensorMapping;
-use crate::utils::theme::AppTheme;
+use crate::helpers::storage_helper;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppConfig {
     pub interval_ms: u64,
-    /// UI theme: light / dark / system (follows OS).
-    #[serde(default)]
-    pub theme: AppTheme,
     pub flash: FlashProfile,
     pub sensors: SensorMapping,
     /// Optional override; when unset the daemon matches by product name / known VID:PID.
@@ -28,7 +25,6 @@ impl Default for AppConfig {
     fn default() -> Self {
         Self {
             interval_ms: 1000,
-            theme: AppTheme::System,
             flash: FlashProfile::default(),
             sensors: SensorMapping::default(),
             vendor_id: None,
@@ -38,35 +34,25 @@ impl Default for AppConfig {
 }
 
 impl AppConfig {
+    pub fn load(path: &Path) -> Result<Self> {
+        storage_helper::read_json(path)
+    }
+
     pub fn load_or_default(path: &Path) -> Result<Self> {
         if path.exists() {
-            let text = fs::read_to_string(path)
-                .with_context(|| format!("read config {}", path.display()))?;
-            let cfg: Self = toml::from_str(&text)
-                .with_context(|| format!("parse config {}", path.display()))?;
-            Ok(cfg)
+            Self::load(path)
         } else {
             Ok(Self::default())
         }
     }
 
-    pub fn write_default(path: &Path) -> Result<()> {
-        Self::default().save(path)
-    }
-
-    /// Persist current settings (theme, flash, sensors, …) to `path`.
     pub fn save(&self, path: &Path) -> Result<()> {
-        let text = toml::to_string_pretty(self)?;
-        if let Some(parent) = path.parent() {
-            fs::create_dir_all(parent)?;
-        }
-        fs::write(path, text).with_context(|| format!("write {}", path.display()))?;
-        Ok(())
+        storage_helper::write_json(path, self)
     }
 
-    /// Prefer root `be-aced.toml`, fall back to reading official flashValue / config.
+    /// Load `config.json` (or path), then optionally merge official flashValue / config.
     pub fn resolve(config_path: Option<PathBuf>, official_dir: Option<PathBuf>) -> Result<Self> {
-        let path = config_path.unwrap_or_else(|| PathBuf::from("be-aced.toml"));
+        let path = config_path.unwrap_or_else(|| storage_helper::config_path(&storage_helper::data_dir()));
         let mut cfg = Self::load_or_default(&path)?;
 
         if let Some(official) = official_dir {

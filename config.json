@@ -1,0 +1,19 @@
+{
+  "interval_ms": 1000,
+  "flash": {
+    "product": "BeAced",
+    "index": 3,
+    "flags": 11,
+    "reserved": 0
+  },
+  "sensors": {
+    "cpu_temperature": "Core Max",
+    "cpu_load": "Total CPU Usage",
+    "cpu_clock": "",
+    "cpu_power": "CPU Package Power",
+    "gpu_temperature": "",
+    "gpu_load": "",
+    "gpu_clock": "",
+    "gpu_power": ""
+  }
+}

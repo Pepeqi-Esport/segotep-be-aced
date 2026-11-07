@@ -48,7 +48,7 @@ pub fn ensure_sidecars() -> anyhow::Result<()> {
     Ok(())
 }
 
-/// Prefer `be-aced.toml` next to the exe (important for Startup / arbitrary cwd).
+/// Prefer `config.json` (or the given relative name) next to the exe.
 pub fn config_path_beside_exe(cli_path: &std::path::Path) -> PathBuf {
     if cli_path.is_absolute() {
         return cli_path.to_path_buf();

@@ -1,4 +1,4 @@
-//! Display metrics selectable on the BeAced dashboard.
+//! Display metrics selectable on the Home page.
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Metric {
