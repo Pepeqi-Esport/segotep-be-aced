@@ -38,24 +38,25 @@ pub fn app_header(ui: &mut egui::Ui, page: &mut HomePage, logo: &TextureHandle) 
                 Vec2::new(120.0, 72.0),
                 Layout::top_down(Align::RIGHT),
                 |ui| {
-                    let check_label = if page.update_busy {
-                        "Checking…"
-                    } else {
-                        "Check update"
-                    };
-                    let check = ui.add_enabled(
-                        !page.update_busy,
-                        egui::Button::new(
-                            RichText::new(check_label).size(12.0).color(Color32::WHITE),
-                        )
-                        .fill(p.accent)
-                        .stroke(Stroke::new(1.0_f32, p.accent)),
-                    );
-                    if check.clicked() {
-                        page.request_manual_update_check(ui.ctx());
+                    if update_helper::update_check_enabled() {
+                        let check_label = if page.update_busy {
+                            "Checking…"
+                        } else {
+                            "Check update"
+                        };
+                        let check = ui.add_enabled(
+                            !page.update_busy,
+                            egui::Button::new(
+                                RichText::new(check_label).size(12.0).color(Color32::WHITE),
+                            )
+                            .fill(p.accent)
+                            .stroke(Stroke::new(1.0_f32, p.accent)),
+                        );
+                        if check.clicked() {
+                            page.request_manual_update_check(ui.ctx());
+                        }
+                        ui.add_space(6.0);
                     }
-
-                    ui.add_space(6.0);
 
                     let connected = page.device.is_some();
                     let (dot, label) = if connected {

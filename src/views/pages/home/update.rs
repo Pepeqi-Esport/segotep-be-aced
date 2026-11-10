@@ -30,10 +30,16 @@ impl HomePage {
             return;
         }
         self.update_startup_started = true;
+        if !update_helper::update_check_enabled() {
+            return;
+        }
         self.spawn_update_check(false, ctx);
     }
 
     pub(crate) fn request_manual_update_check(&mut self, ctx: &egui::Context) {
+        if !update_helper::update_check_enabled() {
+            return;
+        }
         if self.update_busy {
             return;
         }
@@ -42,6 +48,9 @@ impl HomePage {
     }
 
     fn spawn_update_check(&mut self, force_prompt: bool, ctx: &egui::Context) {
+        if !update_helper::update_check_enabled() {
+            return;
+        }
         self.update_busy = true;
         let tx = self.update_tx.clone();
         let ctx = ctx.clone();

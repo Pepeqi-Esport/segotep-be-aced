@@ -72,23 +72,29 @@ Close the official Segotep Digital app before using this tool so HID access is f
 
 ### Config
 
-Runtime files live **beside the exe** (created on first run):
+On every launch the app ensures these files exist beside the exe (same portable layout as s3-manager):
 
 | File | Purpose |
 |------|---------|
 | [`config.json`](config.json) | Poll interval, flash profile, sensor label mapping |
 | [`theme.json`](theme.json) | UI theme (`system` / `light` / `dark`) |
 | `update.json` | Dismissed GitHub release version (`Later`) |
+| `.env` | Local flags such as `ENABLE_UPDATE_CHECK` |
 
 Legacy [`be-aced.toml`](be-aced.toml) is migrated automatically into those JSON files when present.
 
-### Updates (GitHub Releases)
+### Updates
 
-The GUI checks [GitHub Releases](https://github.com/codenameryuu/segotep-be-aced/releases) on startup and via **Check for updates** in Settings.
+Toggle in-app update checking via `.env` (project root for `cargo run`, or beside the `.exe` when packaged):
 
-- If a newer version exists, a modal offers **Update** / **Later**.
+```env
+ENABLE_UPDATE_CHECK=true
+```
+
+Default is `false`. When enabled, the app checks [GitHub Releases](https://github.com/codenameryuu/segotep-be-aced/releases) on startup and via **Check update** in the header.
+
 - **Later** stores that remote version in `update.json` so the same release is not auto-prompted again; a newer release prompts again.
-- Manual **Check for updates** always reports status and can offer Update even for a dismissed version.
+- Manual **Check update** always reports status and can offer Update even for a dismissed version.
 
 Publish a release whose tag matches [`Cargo.toml`](Cargo.toml) `version` (e.g. `v0.2.0`), and attach a Windows zip named for the target triple:
 

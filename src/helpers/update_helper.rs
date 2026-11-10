@@ -14,6 +14,20 @@ pub const REPO_OWNER: &str = "codenameryuu";
 pub const REPO_NAME: &str = "segotep-be-aced";
 pub const BIN_NAME: &str = "segotep-be-aced.exe";
 
+/// Env key in `.env` (beside the exe or project root): `ENABLE_UPDATE_CHECK=true|false`
+pub const ENABLE_UPDATE_CHECK_ENV: &str = "ENABLE_UPDATE_CHECK";
+
+/// Whether GitHub update checks are enabled (from env / `.env`). Default: off.
+pub fn update_check_enabled() -> bool {
+    match std::env::var(ENABLE_UPDATE_CHECK_ENV) {
+        Ok(raw) => {
+            let v = raw.trim().to_ascii_lowercase();
+            matches!(v.as_str(), "1" | "true" | "yes" | "on")
+        }
+        Err(_) => false,
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
 pub struct UpdatePrefs {
     /// Remote version the user chose "Later" for (no leading `v`).
