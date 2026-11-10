@@ -21,15 +21,19 @@ fn main() {
     println!("cargo:rerun-if-changed=sensor-bridge/sensor-bridge.csproj");
     println!("cargo:rerun-if-changed=build.rs");
     println!("cargo:rerun-if-changed=be-aced.toml");
-    println!("cargo:rerun-if-changed=assets/images/logo/app.ico");
     println!("cargo:rerun-if-changed=assets/images/logo/logo.png");
+
+    // Same as s3-manager: derive logo-256.png for logo_helper from the master PNG.
+    if let Err(err) = generate_logo_256() {
+        panic!("failed to generate logo-256.png: {err}");
+    }
 
     let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
     let payload_dir = out_dir.join("payload");
     let _ = fs::create_dir_all(&payload_dir);
 
     if env::var("CARGO_CFG_TARGET_OS").is_ok_and(|os| os == "windows") {
-        embed_admin_manifest();
+        embed_admin_manifest(&out_dir);
         build_and_stage_sensor_bridge(&payload_dir);
     }
 
@@ -37,24 +41,54 @@ fn main() {
     write_embedded_module(&out_dir, &payload_dir);
 }
 
-fn embed_admin_manifest() {
-    let mut res = winres::WindowsResource::new();
-    // Prefer a classic BMP-format .ico (not PNG-compressed). mingw windres
-    // often links PNG ICOs without a usable RT_GROUP_ICON, so Explorer shows
-    // the default exe glyph.
-    let icon = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap())
-        .join("assets")
-        .join("images")
-        .join("logo")
-        .join("app.ico");
-    if icon.is_file() {
-        // windres is picky about separators in the generated .rc path.
-        let icon_path = icon.to_string_lossy().replace('/', "\\");
-        println!("cargo:warning=embedding app icon: {icon_path}");
-        res.set_icon(&icon_path);
-    } else {
-        println!("cargo:warning=app icon missing at {}", icon.display());
+/// Resize the master logo into the 256² asset used by `logo_helper`.
+fn generate_logo_256() -> Result<(), Box<dyn std::error::Error>> {
+    const SRC: &str = "assets/images/logo/logo.png";
+    const DST: &str = "assets/images/logo/logo-256.png";
+
+    let src = image::open(SRC)?.to_rgba8();
+    let resized =
+        image::imageops::resize(&src, 256, 256, image::imageops::FilterType::Lanczos3);
+    resized.save(DST)?;
+    println!("cargo:rerun-if-changed={DST}");
+    Ok(())
+}
+
+fn write_ico(png_path: &str, ico_path: &Path) -> Result<(), Box<dyn std::error::Error>> {
+    // Multi-size classic ICO (not PNG-compressed alone) so Explorer / taskbar
+    // get a usable RT_GROUP_ICON under mingw windres.
+    let src = image::open(png_path)?.to_rgba8();
+    let mut dir = ico::IconDir::new(ico::ResourceType::Icon);
+    for size in [16_u32, 32, 48, 256] {
+        let resized =
+            image::imageops::resize(&src, size, size, image::imageops::FilterType::Lanczos3);
+        let entry = ico::IconImage::from_rgba_data(size, size, resized.into_raw());
+        dir.add_entry(ico::IconDirEntry::encode(&entry)?);
     }
+    let mut file = fs::File::create(ico_path)?;
+    dir.write(&mut file)?;
+    Ok(())
+}
+
+fn embed_admin_manifest(out_dir: &Path) {
+    let mut res = winres::WindowsResource::new();
+
+    let ico_path = out_dir.join("app_icon.ico");
+    match write_ico("assets/images/logo/logo.png", &ico_path) {
+        Ok(()) => {
+            // windres is picky about separators in the generated .rc path.
+            let icon_path = ico_path.to_string_lossy().replace('/', "\\");
+            println!("cargo:warning=embedding app icon: {icon_path}");
+            res.set_icon(&icon_path);
+        }
+        Err(err) => {
+            println!("cargo:warning=failed to build app icon from logo.png: {err}");
+        }
+    }
+
+    res.set("ProductName", "BeAced");
+    res.set("FileDescription", "BeAced — Segotep digital display companion");
+
     // asInvoker: allow start without an immediate OS UAC dialog so we can
     // relaunch via ShellExecute "runas" (or show our own popup if declined).
     // Launch-on-startup uses a Highest-privileges scheduled task (no UAC at login).
@@ -87,16 +121,24 @@ fn embed_admin_manifest() {
     // windows-gnu: ld drops `.rsrc` when it only comes from a static `.a`.
     // Linking `resource.o` directly is required so the PE actually gets
     // RT_GROUP_ICON / VERSION / manifest (otherwise Explorer shows the default icon).
-    let resource_obj = PathBuf::from(env::var("OUT_DIR").unwrap()).join("resource.o");
+    let resource_obj = out_dir.join("resource.o");
     if resource_obj.is_file() {
         let path = resource_obj.to_string_lossy().replace('/', "\\");
         println!("cargo:rustc-link-arg={path}");
         println!("cargo:warning=linking resource object: {path}");
     } else {
-        println!(
-            "cargo:warning=resource.o missing after winres (icon may not embed): {}",
-            resource_obj.display()
-        );
+        // MSVC / some toolchains emit libresource.a instead — force whole-archive like s3-manager.
+        let lib = out_dir.join("libresource.a");
+        if lib.is_file() {
+            println!("cargo:rustc-link-arg=-Wl,--whole-archive");
+            println!("cargo:rustc-link-arg={}", lib.display());
+            println!("cargo:rustc-link-arg=-Wl,--no-whole-archive");
+        } else {
+            println!(
+                "cargo:warning=resource.o / libresource.a missing after winres (icon may not embed): {}",
+                out_dir.display()
+            );
+        }
     }
 }
 

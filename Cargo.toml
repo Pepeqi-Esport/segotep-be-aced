@@ -28,4 +28,6 @@ windows = { version = "0.59", features = [
 ] }
 
 [build-dependencies]
+ico = "0.4"
+image = { version = "0.25", default-features = false, features = ["png"] }
 winres = "0.1.12"

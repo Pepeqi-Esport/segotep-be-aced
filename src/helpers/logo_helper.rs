@@ -1,4 +1,6 @@
 //! Shared BeAced brand logo (window icon, tray, in-app header).
+//!
+//! Uses `logo-256.png`, generated at build time from `logo.png` (see `build.rs`).
 
 use eframe::egui::{self, ColorImage, TextureHandle, TextureOptions};
 use image::imageops::FilterType;
@@ -32,7 +34,7 @@ pub fn tray_icon() -> tray_icon::Icon {
     tray_icon::Icon::from_rgba(rgba, width, height).expect("tray logo icon")
 }
 
-/// GPU texture for the in-app header (call once from `HomePage::new`).
+/// GPU texture for the in-app header (call once from `HomePage` / GUI setup).
 pub fn load_texture(ctx: &egui::Context) -> TextureHandle {
     let (rgba, w, h) = decode_rgba(256);
     let color = ColorImage::from_rgba_unmultiplied([w as usize, h as usize], &rgba);
