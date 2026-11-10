@@ -78,7 +78,6 @@ fn embed_admin_manifest(out_dir: &Path) {
         Ok(()) => {
             // windres is picky about separators in the generated .rc path.
             let icon_path = ico_path.to_string_lossy().replace('/', "\\");
-            println!("cargo:warning=embedding app icon: {icon_path}");
             res.set_icon(&icon_path);
         }
         Err(err) => {
@@ -125,7 +124,6 @@ fn embed_admin_manifest(out_dir: &Path) {
     if resource_obj.is_file() {
         let path = resource_obj.to_string_lossy().replace('/', "\\");
         println!("cargo:rustc-link-arg={path}");
-        println!("cargo:warning=linking resource object: {path}");
     } else {
         // MSVC / some toolchains emit libresource.a instead — force whole-archive like s3-manager.
         let lib = out_dir.join("libresource.a");

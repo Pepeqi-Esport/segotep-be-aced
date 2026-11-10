@@ -4,6 +4,9 @@
 //! - `theme.json` — UI theme preference
 //! - `config.json` — device / sensor settings
 //!
+//! Optional:
+//! - `update.json` — dismissed GitHub release version
+//!
 //! Also migrates legacy `be-aced.toml` when present.
 
 use std::fs;
@@ -19,6 +22,7 @@ use crate::utils::theme::AppTheme;
 
 pub const THEME_FILE: &str = "theme.json";
 pub const CONFIG_FILE: &str = "config.json";
+pub const UPDATE_FILE: &str = "update.json";
 pub const LEGACY_TOML: &str = "be-aced.toml";
 
 pub fn theme_path(dir: &Path) -> PathBuf {
@@ -27,6 +31,10 @@ pub fn theme_path(dir: &Path) -> PathBuf {
 
 pub fn config_path(dir: &Path) -> PathBuf {
     dir.join(CONFIG_FILE)
+}
+
+pub fn update_path(dir: &Path) -> PathBuf {
+    dir.join(UPDATE_FILE)
 }
 
 pub fn legacy_toml_path(dir: &Path) -> PathBuf {

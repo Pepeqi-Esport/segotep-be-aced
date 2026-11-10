@@ -17,6 +17,7 @@ Rust reimplementation of Segotep **BeAced** digital-display control.
 * `screen on|off` — one-shot screen toggle report
 * `validate` — dump packets for USB capture comparison
 * `init-config` — write default `config.json` + `theme.json` beside the exe if missing
+* In-app updates — startup check + Settings **Check for updates** (GitHub Releases)
 
 ## Protocol summary
 
@@ -75,10 +76,27 @@ Runtime files live **beside the exe** (created on first run):
 
 | File | Purpose |
 |------|---------|
-| [ `config.json` ](config.json) | Poll interval, flash profile, sensor label mapping |
-| [ `theme.json` ](theme.json) | UI theme ( `system` / `light` / `dark` ) |
+| [`config.json`](config.json) | Poll interval, flash profile, sensor label mapping |
+| [`theme.json`](theme.json) | UI theme (`system` / `light` / `dark`) |
+| `update.json` | Dismissed GitHub release version (`Later`) |
 
-Legacy [ `be-aced.toml` ](be-aced.toml) is migrated automatically into those JSON files when present.
+Legacy [`be-aced.toml`](be-aced.toml) is migrated automatically into those JSON files when present.
+
+### Updates (GitHub Releases)
+
+The GUI checks [GitHub Releases](https://github.com/codenameryuu/segotep-be-aced/releases) on startup and via **Check for updates** in Settings.
+
+- If a newer version exists, a modal offers **Update** / **Later**.
+- **Later** stores that remote version in `update.json` so the same release is not auto-prompted again; a newer release prompts again.
+- Manual **Check for updates** always reports status and can offer Update even for a dismissed version.
+
+Publish a release whose tag matches [`Cargo.toml`](Cargo.toml) `version` (e.g. `v0.2.0`), and attach a Windows zip named for the target triple:
+
+```text
+segotep-be-aced-v0.2.0-x86_64-pc-windows-msvc.zip
+```
+
+The zip must contain `segotep-be-aced.exe` at the archive root. Bump the crate version before tagging.
 
 Sensor labels / flash profile can also be merged **read-only** from `official/config` and `official/flashValue` when `--official` (default: `official` ) exists.
 
@@ -100,8 +118,10 @@ RUST_LOG=debug cargo run -- daemon --once
 ├── official/              # vendor app (do not modify)
 ├── sensor-bridge/         # .NET 8 LibreHardwareMonitor sidecar
 ├── assets/images/logo/    # app icon + in-window logo
+├── assets/fonts/          # Inter (UI typeface) + OFL license
 ├── config.json            # runtime device/sensor settings
 ├── theme.json             # UI theme preference
+├── update.json            # dismissed update version (created at runtime)
 ├── be-aced.toml           # legacy config (auto-migrated)
 ├── build.rs               # embed icon, bridge payload, admin manifest
 ├── Cargo.toml
@@ -109,7 +129,7 @@ RUST_LOG=debug cargo run -- daemon --once
     ├── main.rs            # CLI + entry
     ├── config/            # AppConfig, flash, sensors, theme
     ├── services/          # HID, protocol, sensors, daemon, background
-    ├── helpers/           # admin, tray, autostart, payload, storage
+    ├── helpers/           # admin, tray, autostart, update, payload, storage
     ├── utils/             # constants, theme palette
     └── views/             # egui pages / layouts / components
 ```
