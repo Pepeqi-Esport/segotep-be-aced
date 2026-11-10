@@ -10,7 +10,7 @@ use crate::helpers::storage_helper;
 use crate::services::background_service;
 use crate::services::sensor_service;
 
-pub const REPO_OWNER: &str = "codenameryuu";
+pub const REPO_OWNER: &str = "Pepeqi-Esport-Reborn";
 pub const REPO_NAME: &str = "segotep-be-aced";
 pub const BIN_NAME: &str = "segotep-be-aced.exe";
 

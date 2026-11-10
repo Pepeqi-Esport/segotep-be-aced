@@ -13,7 +13,7 @@ Rust reimplementation of Segotep **BeAced** digital-display control.
 * `--tray` — start hidden in the system tray (used by login autostart)
 * `list` — enumerate HID devices and highlight BeAced IDs
 * `info` — flash profile + matched device + live sensor snapshot
-* `daemon` — headless poll + HID push (`--once`,  `--dry-run`,  `--screen-off`,  `--background`)
+* `daemon` — headless poll + HID push (`--once`,   `--dry-run`,   `--screen-off`,   `--background`)
 * `screen on|off` — one-shot screen toggle report
 * `validate` — dump packets for USB capture comparison
 * `init-config` — write default `config.json` + `theme.json` beside the exe if missing
@@ -76,27 +76,27 @@ On every launch the app ensures these files exist beside the exe (same portable 
 
 | File | Purpose |
 |------|---------|
-| [`config.json`](config.json) | Poll interval, flash profile, sensor label mapping |
-| [`theme.json`](theme.json) | UI theme (`system` / `light` / `dark`) |
-| `update.json` | Dismissed GitHub release version (`Later`) |
+| [ `config.json` ](config.json) | Poll interval, flash profile, sensor label mapping |
+| [ `theme.json` ](theme.json) | UI theme ( `system` / `light` / `dark` ) |
+| `update.json` | Dismissed GitHub release version ( `Later` ) |
 | `.env` | Local flags such as `ENABLE_UPDATE_CHECK` |
 
-Legacy [`be-aced.toml`](be-aced.toml) is migrated automatically into those JSON files when present.
+Legacy [ `be-aced.toml` ](be-aced.toml) is migrated automatically into those JSON files when present.
 
 ### Updates
 
-Toggle in-app update checking via `.env` (project root for `cargo run`, or beside the `.exe` when packaged):
+Toggle in-app update checking via `.env` (project root for `cargo run` , or beside the `.exe` when packaged):
 
 ```env
 ENABLE_UPDATE_CHECK=true
 ```
 
-Default is `false`. When enabled, the app checks [GitHub Releases](https://github.com/codenameryuu/segotep-be-aced/releases) on startup and via **Check update** in the header.
+Default is `false` . When enabled, the app checks [GitHub Releases](https://github.com/Pepeqi-Esport-Reborn/segotep-be-aced/releases) on startup and via **Check update** in the header.
 
-- **Later** stores that remote version in `update.json` so the same release is not auto-prompted again; a newer release prompts again.
-- Manual **Check update** always reports status and can offer Update even for a dismissed version.
+* **Later** stores that remote version in `update.json` so the same release is not auto-prompted again; a newer release prompts again.
+* Manual **Check update** always reports status and can offer Update even for a dismissed version.
 
-Publish a release whose tag matches [`Cargo.toml`](Cargo.toml) `version` (e.g. `v0.2.0`), and attach a Windows zip named for the target triple:
+Publish a release whose tag matches [ `Cargo.toml` ](Cargo.toml) `version` (e.g. `v0.2.0` ), and attach a Windows zip named for the target triple:
 
 ```text
 segotep-be-aced-v0.2.0-x86_64-pc-windows-msvc.zip
