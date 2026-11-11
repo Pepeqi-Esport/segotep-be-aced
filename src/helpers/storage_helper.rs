@@ -1,10 +1,8 @@
-//! User data files living beside the exe (JSON + `.env`).
+//! User data files living beside the exe (JSON).
 //!
-//! Required on first run (same portable layout as s3-manager):
+//! Required on first run:
 //! - `theme.json` — UI theme preference
 //! - `config.json` — device / sensor settings
-//! - `update.json` — dismissed GitHub release version
-//! - `.env` — local flags such as `ENABLE_UPDATE_CHECK`
 //!
 //! Also migrates legacy `be-aced.toml` when present.
 
@@ -17,20 +15,11 @@ use serde::{Deserialize, Serialize};
 
 use crate::config::{AppConfig, FlashProfile, SensorMapping, ThemeConfig};
 use crate::helpers::payload_helper;
-use crate::helpers::update_helper::UpdatePrefs;
 use crate::utils::theme::AppTheme;
 
 pub const THEME_FILE: &str = "theme.json";
 pub const CONFIG_FILE: &str = "config.json";
-pub const UPDATE_FILE: &str = "update.json";
-pub const ENV_FILE: &str = ".env";
 pub const LEGACY_TOML: &str = "be-aced.toml";
-
-const DEFAULT_ENV: &str = "\
-# BeAced local settings (beside the exe, or project root when using cargo run)
-# Set to true to enable GitHub Releases update checks.
-ENABLE_UPDATE_CHECK=false
-";
 
 pub fn theme_path(dir: &Path) -> PathBuf {
     dir.join(THEME_FILE)
@@ -38,14 +27,6 @@ pub fn theme_path(dir: &Path) -> PathBuf {
 
 pub fn config_path(dir: &Path) -> PathBuf {
     dir.join(CONFIG_FILE)
-}
-
-pub fn update_path(dir: &Path) -> PathBuf {
-    dir.join(UPDATE_FILE)
-}
-
-pub fn env_path(dir: &Path) -> PathBuf {
-    dir.join(ENV_FILE)
 }
 
 pub fn legacy_toml_path(dir: &Path) -> PathBuf {
@@ -57,59 +38,33 @@ pub fn data_dir() -> PathBuf {
     payload_helper::install_dir().unwrap_or_else(|_| PathBuf::from("."))
 }
 
-/// Create missing sidecar files beside the exe (`theme.json`, `config.json`,
-/// `update.json`, `.env`). Safe to call on every launch.
-pub fn ensure_sidecar_config_files() {
-    let dir = data_dir();
-    let _ = fs::create_dir_all(&dir);
-    let _ = migrate_legacy_toml(&dir);
-
-    let theme_file = theme_path(&dir);
-    if !theme_file.is_file() {
-        let _ = ThemeConfig::default().save(&theme_file);
-    }
-
-    let config_file = config_path(&dir);
-    if !config_file.is_file() {
-        let _ = AppConfig::default().save(&config_file);
-    }
-
-    let update_file = update_path(&dir);
-    if !update_file.is_file() {
-        let _ = UpdatePrefs::default().save();
-    }
-
-    let env_file = env_path(&dir);
-    if !env_file.is_file() {
-        let _ = fs::write(&env_file, DEFAULT_ENV);
-    }
-}
-
-/// Load `.env` from the current working directory and/or beside the exe.
-/// Existing process env vars are never overwritten; earlier files win.
-pub fn load_dotenv() {
-    let _ = dotenvy::dotenv();
-    let beside = env_path(&data_dir());
-    if beside.is_file() {
-        let _ = dotenvy::from_path(&beside);
-    }
-}
-
 /// Write missing JSON defaults beside the exe and migrate legacy TOML once.
 pub fn ensure_user_data() -> Result<(PathBuf, ThemeConfig, AppConfig)> {
-    ensure_sidecar_config_files();
-
     let dir = data_dir();
     fs::create_dir_all(&dir).with_context(|| format!("create data dir {}", dir.display()))?;
 
+    migrate_legacy_toml(&dir)?;
+
     let theme_file = theme_path(&dir);
+    let config_file = config_path(&dir);
+
     let theme = if theme_file.is_file() {
         ThemeConfig::load(&theme_file)?
     } else {
-        ThemeConfig::default()
+        let theme = ThemeConfig::default();
+        theme.save(&theme_file)?;
+        tracing::info!(path = %theme_file.display(), "created default theme.json");
+        theme
     };
 
-    let config = AppConfig::load_or_default(&config_path(&dir))?;
+    let config = if config_file.is_file() {
+        AppConfig::load(&config_file)?
+    } else {
+        let config = AppConfig::default();
+        config.save(&config_file)?;
+        tracing::info!(path = %config_file.display(), "created default config.json");
+        config
+    };
 
     Ok((dir, theme, config))
 }

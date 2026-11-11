@@ -115,10 +115,6 @@ fn main() -> Result<()> {
     // Must run elevated (CPU sensors / HID). Show a clear popup if not.
     admin_helper::require_administrator();
 
-    // Ensure sidecar `.env` exists, then load ENABLE_UPDATE_CHECK etc. (same as s3-manager).
-    crate::helpers::storage_helper::ensure_sidecar_config_files();
-    crate::helpers::storage_helper::load_dotenv();
-
     let cli = Cli::parse();
     let wants_gui = matches!(cli.command, None | Some(Commands::Gui));
     let background_daemon = matches!(

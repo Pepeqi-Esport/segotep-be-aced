@@ -2,10 +2,8 @@
 
 mod actions;
 mod theme;
-mod update;
 
 use std::path::PathBuf;
-use std::sync::mpsc::{Receiver, Sender};
 use std::time::{Duration, Instant};
 
 use eframe::egui;
@@ -15,7 +13,6 @@ use crate::config::AppConfig;
 use crate::helpers::autostart_helper;
 use crate::helpers::logo_helper;
 use crate::helpers::tray_helper::{self, AppTray, TrayAction};
-use crate::helpers::update_helper::UpdatePrefs;
 use crate::services::background_service;
 use crate::services::device_service::{detect_default_mode, open_be_aced};
 use crate::services::protocol_service::DeviceMode;
@@ -24,8 +21,6 @@ use crate::utils::constants::{WINDOW_TITLE, WIN_H, WIN_MIN_H, WIN_MIN_W, WIN_W};
 use crate::utils::theme::{apply_theme, AppTheme, Palette};
 use crate::views::components::Metric;
 use crate::views::layouts::main_layout;
-
-use self::update::{load_prefs, update_channel, UpdateDialog, UpdateMsg};
 
 pub struct HomePage {
     pub(crate) cfg: AppConfig,
@@ -52,12 +47,6 @@ pub struct HomePage {
     pub(crate) tray: Option<AppTray>,
     pub(crate) logo: egui::TextureHandle,
     pub(crate) start_in_tray: bool,
-    pub(crate) update_prefs: UpdatePrefs,
-    pub(crate) update_dialog: Option<UpdateDialog>,
-    pub(crate) update_busy: bool,
-    pub(crate) update_startup_started: bool,
-    pub(crate) update_tx: Sender<UpdateMsg>,
-    pub(crate) update_rx: Receiver<UpdateMsg>,
 }
 
 impl HomePage {
@@ -99,7 +88,6 @@ impl HomePage {
         let interval = Duration::from_millis(cfg.interval_ms.max(200));
         let self_starting = autostart_helper::is_enabled();
         let resolved_dark = palette.dark;
-        let (update_tx, update_rx) = update_channel();
 
         Self {
             cfg,
@@ -125,12 +113,6 @@ impl HomePage {
             tray,
             logo,
             start_in_tray,
-            update_prefs: load_prefs(),
-            update_dialog: None,
-            update_busy: false,
-            update_startup_started: false,
-            update_tx,
-            update_rx,
         }
     }
 
@@ -229,12 +211,9 @@ impl eframe::App for HomePage {
             }
         }
 
-        self.ensure_startup_update_check(ctx);
-        self.poll_update_messages();
         self.tick();
         self.sync_system_theme(ctx);
         ctx.request_repaint_after(Duration::from_millis(250));
         main_layout(ctx, self);
-        self.show_update_dialog(ctx);
     }
 }

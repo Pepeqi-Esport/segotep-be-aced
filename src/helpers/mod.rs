@@ -5,4 +5,3 @@ pub mod dotnet_runtime_helper;
 pub mod payload_helper;
 pub mod storage_helper;
 pub mod tray_helper;
-pub mod update_helper;
