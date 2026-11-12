@@ -1,4 +1,4 @@
-# Legacy — migrated automatically to config.json + theme.json beside the exe.
+# Legacy — migrated automatically to config.json beside the exe.
 interval_ms = 1000
 theme = "system"
 

@@ -86,7 +86,7 @@ enum Commands {
         #[arg(long, value_enum, default_value = "screen")]
         mode: ModeArg,
     },
-    /// Write default config.json + theme.json beside the exe if missing
+    /// Write default config.json beside the exe if missing
     InitConfig,
 }
 
@@ -169,9 +169,8 @@ fn main() -> Result<()> {
         tracing::warn!("sidecar extract failed: {err}");
     }
 
-    // Ensure theme.json + config.json exist beside the exe (migrate legacy TOML).
-    let (data_dir, theme_file, _) = crate::helpers::storage_helper::ensure_user_data()?;
-    let theme_path = crate::helpers::storage_helper::theme_path(&data_dir);
+    // Ensure config.json exists beside the exe (migrate legacy TOML / theme.json).
+    let _ = crate::helpers::storage_helper::ensure_user_data()?;
     let config_path = if cli.config.is_absolute() {
         cli.config.clone()
     } else {
@@ -187,7 +186,7 @@ fn main() -> Result<()> {
 
     match cli.command {
         None | Some(Commands::Gui) => {
-            crate::views::run_gui(cfg, config_path, theme_path, theme_file.theme, cli.tray)
+            crate::views::run_gui(cfg, config_path, cli.tray)
                 .map_err(|e| anyhow::anyhow!("GUI error: {e}"))?;
         }
         Some(Commands::List) => cmd_list()?,
@@ -230,10 +229,9 @@ fn main() -> Result<()> {
         }
         Some(Commands::Validate { mode }) => cmd_validate(&cfg, mode.into())?,
         Some(Commands::InitConfig) => {
-            let (dir, _, _) = crate::helpers::storage_helper::ensure_user_data()?;
+            let (dir, _) = crate::helpers::storage_helper::ensure_user_data()?;
             println!(
-                "ensured {}\nensured {}",
-                crate::helpers::storage_helper::theme_path(&dir).display(),
+                "ensured {}",
                 crate::helpers::storage_helper::config_path(&dir).display()
             );
         }

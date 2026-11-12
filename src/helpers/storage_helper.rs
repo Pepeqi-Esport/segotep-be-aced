@@ -1,10 +1,9 @@
 //! User data files living beside the exe (JSON).
 //!
 //! Required on first run:
-//! - `theme.json` — UI theme preference
-//! - `config.json` — device / sensor settings
+//! - `config.json` — device / sensor / theme settings
 //!
-//! Also migrates legacy `be-aced.toml` when present.
+//! Also migrates legacy `be-aced.toml` and `theme.json` when present.
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -13,20 +12,20 @@ use anyhow::{Context, Result};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
-use crate::config::{AppConfig, FlashProfile, SensorMapping, ThemeConfig};
+use crate::config::{AppConfig, FlashProfile, SensorMapping};
 use crate::helpers::payload_helper;
 use crate::utils::theme::AppTheme;
 
-pub const THEME_FILE: &str = "theme.json";
 pub const CONFIG_FILE: &str = "config.json";
+pub const LEGACY_THEME_FILE: &str = "theme.json";
 pub const LEGACY_TOML: &str = "be-aced.toml";
-
-pub fn theme_path(dir: &Path) -> PathBuf {
-    dir.join(THEME_FILE)
-}
 
 pub fn config_path(dir: &Path) -> PathBuf {
     dir.join(CONFIG_FILE)
+}
+
+pub fn legacy_theme_path(dir: &Path) -> PathBuf {
+    dir.join(LEGACY_THEME_FILE)
 }
 
 pub fn legacy_toml_path(dir: &Path) -> PathBuf {
@@ -38,26 +37,15 @@ pub fn data_dir() -> PathBuf {
     payload_helper::install_dir().unwrap_or_else(|_| PathBuf::from("."))
 }
 
-/// Write missing JSON defaults beside the exe and migrate legacy TOML once.
-pub fn ensure_user_data() -> Result<(PathBuf, ThemeConfig, AppConfig)> {
+/// Write missing `config.json` beside the exe and migrate legacy files once.
+pub fn ensure_user_data() -> Result<(PathBuf, AppConfig)> {
     let dir = data_dir();
     fs::create_dir_all(&dir).with_context(|| format!("create data dir {}", dir.display()))?;
 
     migrate_legacy_toml(&dir)?;
 
-    let theme_file = theme_path(&dir);
     let config_file = config_path(&dir);
-
-    let theme = if theme_file.is_file() {
-        ThemeConfig::load(&theme_file)?
-    } else {
-        let theme = ThemeConfig::default();
-        theme.save(&theme_file)?;
-        tracing::info!(path = %theme_file.display(), "created default theme.json");
-        theme
-    };
-
-    let config = if config_file.is_file() {
+    let mut config = if config_file.is_file() {
         AppConfig::load(&config_file)?
     } else {
         let config = AppConfig::default();
@@ -66,7 +54,11 @@ pub fn ensure_user_data() -> Result<(PathBuf, ThemeConfig, AppConfig)> {
         config
     };
 
-    Ok((dir, theme, config))
+    if migrate_legacy_theme_json(&dir, &mut config)? {
+        config.save(&config_file)?;
+    }
+
+    Ok((dir, config))
 }
 
 fn migrate_legacy_toml(dir: &Path) -> Result<()> {
@@ -75,9 +67,8 @@ fn migrate_legacy_toml(dir: &Path) -> Result<()> {
         return Ok(());
     }
 
-    let theme_file = theme_path(dir);
     let config_file = config_path(dir);
-    if theme_file.is_file() && config_file.is_file() {
+    if config_file.is_file() {
         return Ok(());
     }
 
@@ -86,27 +77,41 @@ fn migrate_legacy_toml(dir: &Path) -> Result<()> {
     let legacy: LegacyToml = toml::from_str(&text)
         .with_context(|| format!("parse legacy {}", toml_path.display()))?;
 
-    if !theme_file.is_file() {
-        let theme = ThemeConfig {
-            theme: legacy.theme.unwrap_or_default(),
-        };
-        theme.save(&theme_file)?;
-        tracing::info!(path = %theme_file.display(), "migrated theme from be-aced.toml");
-    }
-
-    if !config_file.is_file() {
-        let config = AppConfig {
-            interval_ms: legacy.interval_ms.unwrap_or(1000),
-            flash: legacy.flash.unwrap_or_default(),
-            sensors: legacy.sensors.unwrap_or_default(),
-            vendor_id: legacy.vendor_id,
-            product_id: legacy.product_id,
-        };
-        config.save(&config_file)?;
-        tracing::info!(path = %config_file.display(), "migrated config from be-aced.toml");
-    }
+    let config = AppConfig {
+        interval_ms: legacy.interval_ms.unwrap_or(1000),
+        theme: legacy.theme.unwrap_or_default(),
+        flash: legacy.flash.unwrap_or_default(),
+        sensors: legacy.sensors.unwrap_or_default(),
+        vendor_id: legacy.vendor_id,
+        product_id: legacy.product_id,
+    };
+    config.save(&config_file)?;
+    tracing::info!(path = %config_file.display(), "migrated config from be-aced.toml");
 
     Ok(())
+}
+
+/// Fold legacy `theme.json` into `config.json`, then remove `theme.json`.
+fn migrate_legacy_theme_json(dir: &Path, config: &mut AppConfig) -> Result<bool> {
+    let theme_file = legacy_theme_path(dir);
+    if !theme_file.is_file() {
+        return Ok(false);
+    }
+
+    #[derive(Deserialize)]
+    struct LegacyTheme {
+        theme: AppTheme,
+    }
+
+    let legacy: LegacyTheme = read_json(&theme_file)?;
+    config.theme = legacy.theme;
+    let _ = fs::remove_file(&theme_file);
+    tracing::info!(
+        path = %theme_file.display(),
+        theme = %config.theme.label(),
+        "migrated theme.json into config.json"
+    );
+    Ok(true)
 }
 
 /// Pretty-print JSON with trailing newline.

@@ -1,4 +1,4 @@
-//! Device / sensor settings persisted as `config.json` beside the exe.
+//! Device / sensor / UI settings persisted as `config.json` beside the exe.
 
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
@@ -8,10 +8,14 @@ use std::path::{Path, PathBuf};
 use super::flash_profile::FlashProfile;
 use super::sensor_mapping::SensorMapping;
 use crate::helpers::storage_helper;
+use crate::utils::theme::AppTheme;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppConfig {
     pub interval_ms: u64,
+    /// UI theme: `light` / `dark` / `system`
+    #[serde(default)]
+    pub theme: AppTheme,
     pub flash: FlashProfile,
     pub sensors: SensorMapping,
     /// Optional override; when unset the daemon matches by product name / known VID:PID.
@@ -25,6 +29,7 @@ impl Default for AppConfig {
     fn default() -> Self {
         Self {
             interval_ms: 1000,
+            theme: AppTheme::System,
             flash: FlashProfile::default(),
             sensors: SensorMapping::default(),
             vendor_id: None,

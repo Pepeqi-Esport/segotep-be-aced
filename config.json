@@ -1,5 +1,6 @@
 {
   "interval_ms": 1000,
+  "theme": "system",
   "flash": {
     "product": "BeAced",
     "index": 3,

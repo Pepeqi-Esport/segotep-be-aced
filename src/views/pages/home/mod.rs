@@ -24,9 +24,7 @@ use crate::views::layouts::main_layout;
 
 pub struct HomePage {
     pub(crate) cfg: AppConfig,
-    #[allow(dead_code)]
     pub(crate) config_path: PathBuf,
-    pub(crate) theme_path: PathBuf,
     pub(crate) theme: AppTheme,
     pub(crate) palette: Palette,
     pub(crate) resolved_dark: bool,
@@ -53,8 +51,6 @@ impl HomePage {
     pub fn new(
         cfg: AppConfig,
         config_path: PathBuf,
-        theme_path: PathBuf,
-        theme: AppTheme,
         tray: Option<AppTray>,
         logo: egui::TextureHandle,
         palette: Palette,
@@ -72,6 +68,7 @@ impl HomePage {
         let mut sensors = SensorReader::new();
         let snap = sensors.poll();
         let flash_flags = cfg.flash.flags;
+        let theme = cfg.theme;
         let active = Metric::all()
             .into_iter()
             .find(|m| flash_flags & m.bit() != 0)
@@ -92,7 +89,6 @@ impl HomePage {
         Self {
             cfg,
             config_path,
-            theme_path,
             theme,
             palette,
             resolved_dark,
@@ -124,8 +120,6 @@ impl HomePage {
 pub fn run_gui(
     cfg: AppConfig,
     config_path: PathBuf,
-    theme_path: PathBuf,
-    theme: AppTheme,
     start_in_tray: bool,
 ) -> eframe::Result<()> {
     if !tray_helper::try_become_singleton() {
@@ -151,7 +145,7 @@ pub fn run_gui(
         options,
         Box::new(move |cc| {
             crate::utils::fonts::install(&cc.egui_ctx);
-            let palette = apply_theme(&cc.egui_ctx, theme);
+            let palette = apply_theme(&cc.egui_ctx, cfg.theme);
             let logo = logo_helper::load_texture(&cc.egui_ctx);
             let tray = match tray_helper::install(&cc.egui_ctx) {
                 Ok(t) => Some(t),
@@ -163,8 +157,6 @@ pub fn run_gui(
             Ok(Box::new(HomePage::new(
                 cfg,
                 config_path,
-                theme_path,
-                theme,
                 tray,
                 logo,
                 palette,

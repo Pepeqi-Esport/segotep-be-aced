@@ -2,17 +2,16 @@
 
 use eframe::egui;
 
-use crate::config::ThemeConfig;
 use crate::utils::theme::{apply_theme, AppTheme, Palette};
 use crate::views::pages::HomePage;
 
 impl HomePage {
     pub(crate) fn set_theme(&mut self, ctx: &egui::Context, theme: AppTheme) {
         self.theme = theme;
+        self.cfg.theme = theme;
         self.palette = apply_theme(ctx, theme);
         self.resolved_dark = self.palette.dark;
-        let file = ThemeConfig { theme };
-        match file.save(&self.theme_path) {
+        match self.cfg.save(&self.config_path) {
             Ok(()) => {
                 self.status = format!("Theme: {}", theme.label());
             }
