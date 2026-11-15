@@ -13,21 +13,21 @@ Rust reimplementation of Segotep **BeAced** digital-display control.
 * `--tray` — start hidden in the system tray (used by login autostart)
 * `list` — enumerate HID devices and highlight BeAced IDs
 * `info` — flash profile + matched device + live sensor snapshot
-* `daemon` — headless poll + HID push (`--once`,  `--dry-run`,  `--screen-off`,  `--background`)
+* `daemon` — headless poll + HID push (`--once`, `--dry-run`, `--screen-off`, `--background`)
 * `screen on|off` — one-shot screen toggle report
 * `validate` — dump packets for USB capture comparison
 * `init-config` — write default `config.json` beside the exe if missing
 
 ## Protocol summary
 
-Two HID paths (auto-detected; override with `--mode` ):
+Two HID paths (auto-detected; override with `--mode`):
 
 | Mode | VID: PID | Report | Official path |
 |------|---------|--------|---------------|
 | `screen` (default when `official/screen` marker present) | `0x0416:0x6001` (Nuvoton) | 11 bytes | `SendScreenValues` |
 | `legacy` | `0x1A86:0xA001` | 34 bytes | `SendLatestValues` |
 
-Packet builders live in [ `src/services/protocol_service.rs` ](src/services/protocol_service.rs).
+Packet builders live in [`src/services/protocol_service.rs`](src/services/protocol_service.rs).
 
 ## Build
 
@@ -57,14 +57,14 @@ cargo run --release -- gui
 cargo run --release -- --tray
 
 # optional: ensure default config beside the exe
-cargo run -- init-config
+cargo run --release -- init-config
 
 # CLI helpers
-cargo run -- list
-cargo run -- info
-cargo run -- daemon --once
-cargo run -- screen off
-cargo run -- validate --mode screen
+cargo run --release -- list
+cargo run --release -- info
+cargo run --release -- daemon --once
+cargo run --release -- screen off
+cargo run --release -- validate --mode screen
 ```
 
 Close the official Segotep Digital app before using this tool so HID access is free.
@@ -75,14 +75,14 @@ Runtime file beside the exe (created on first run):
 
 | File | Purpose |
 |------|---------|
-| [ `config.json` ](config.json) | Poll interval, UI theme ( `system` / `light` / `dark` ), flash profile, sensor labels |
+| [`config.json`](config.json) | Poll interval, UI theme (`system` / `light` / `dark`), flash profile, sensor labels |
 
-Legacy [ `be-aced.toml` ](be-aced.toml) and older `theme.json` are migrated automatically into `config.json` when present.
+Legacy [`be-aced.toml`](be-aced.toml) and older `theme.json` are migrated automatically into `config.json` when present.
 
-Sensor labels / flash profile can also be merged **read-only** from `official/config` and `official/flashValue` when `--official` (default: `official` ) exists.
+Sensor labels / flash profile can also be merged **read-only** from `official/config` and `official/flashValue` when `--official` (default: `official`) exists.
 
 ```bash
-RUST_LOG=debug cargo run -- daemon --once
+RUST_LOG=debug cargo run --release -- daemon --once
 ```
 
 ## Notes
