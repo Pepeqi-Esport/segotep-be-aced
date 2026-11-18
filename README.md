@@ -2,30 +2,30 @@
 
 Rust reimplementation of Segotep **BeAced** digital-display control.
 
-* **GUI** (default): egui window (~760×760) with live metrics, display toggle, theme, and launch-on-startup — assets redrawn, not copied
-* Close minimizes to the **system tray** (display keeps updating); use **Quit completely** to exit
-* **CLI** still available for headless use
-* Vendor binaries stay under [`official/`](official/) (read-only reference)
+- **GUI** (default): egui window (~760×760) with live metrics, display toggle, theme, and launch-on-startup — assets redrawn, not copied
+- Close minimizes to the **system tray** (display keeps updating); use **Quit completely** to exit
+- **CLI** still available for headless use
+- Vendor binaries stay under [`official/`](official/) (read-only reference)
 
 ## Features
 
-* GUI — control window (opens when run with no args, or `gui`)
-* `--tray` — start hidden in the system tray (used by login autostart)
-* `list` — enumerate HID devices and highlight BeAced IDs
-* `info` — flash profile + matched device + live sensor snapshot
-* `daemon` — headless poll + HID push (`--once`, `--dry-run`, `--screen-off`, `--background`)
-* `screen on|off` — one-shot screen toggle report
-* `validate` — dump packets for USB capture comparison
-* `init-config` — write default `config.json` beside the exe if missing
+- GUI — control window (opens when run with no args, or `gui`)
+- `--tray` — start hidden in the system tray (used by login autostart)
+- `list` — enumerate HID devices and highlight BeAced IDs
+- `info` — flash profile + matched device + live sensor snapshot
+- `daemon` — headless poll + HID push (`--once`, `--dry-run`, `--screen-off`, `--background`)
+- `screen on|off` — one-shot screen toggle report
+- `validate` — dump packets for USB capture comparison
+- `init-config` — write default `config.json` beside the exe if missing
 
 ## Protocol summary
 
 Two HID paths (auto-detected; override with `--mode`):
 
-| Mode | VID: PID | Report | Official path |
-|------|---------|--------|---------------|
+| Mode                                                     | VID: PID                  | Report   | Official path      |
+| -------------------------------------------------------- | ------------------------- | -------- | ------------------ |
 | `screen` (default when `official/screen` marker present) | `0x0416:0x6001` (Nuvoton) | 11 bytes | `SendScreenValues` |
-| `legacy` | `0x1A86:0xA001` | 34 bytes | `SendLatestValues` |
+| `legacy`                                                 | `0x1A86:0xA001`           | 34 bytes | `SendLatestValues` |
 
 Packet builders live in [`src/services/protocol_service.rs`](src/services/protocol_service.rs).
 
@@ -73,8 +73,8 @@ Close the official Segotep Digital app before using this tool so HID access is f
 
 Runtime file beside the exe (created on first run):
 
-| File | Purpose |
-|------|---------|
+| File                         | Purpose                                                                             |
+| ---------------------------- | ----------------------------------------------------------------------------------- |
 | [`config.json`](config.json) | Poll interval, UI theme (`system` / `light` / `dark`), flash profile, sensor labels |
 
 Legacy [`be-aced.toml`](be-aced.toml) and older `theme.json` are migrated automatically into `config.json` when present.
@@ -87,11 +87,11 @@ RUST_LOG=debug cargo run --release -- daemon --once
 
 ## Notes
 
-* Close the official app before `daemon` / `screen` — it may hold the HID device exclusively.
-* CPU temperature / load / clock / package power come from `sysinfo` + `sensor-bridge` (LibreHardwareMonitor). Values default to `0` when unavailable.
-* Closing the window keeps a background daemon + tray icon; quit from the tray menu or **Quit completely** in Settings.
-* Launch on startup registers a scheduled task that starts elevated with `--tray` (no UAC prompt at login).
-* UI typeface is **Inter** (`assets/fonts/`).
+- Close the official app before `daemon` / `screen` — it may hold the HID device exclusively.
+- CPU temperature / load / clock / package power come from `sysinfo` + `sensor-bridge` (LibreHardwareMonitor). Values default to `0` when unavailable.
+- Closing the window keeps a background daemon + tray icon; quit from the tray menu or **Quit completely** in Settings.
+- Launch on startup registers a scheduled task that starts elevated with `--tray` (no UAC prompt at login).
+- UI typeface is **Inter** (`assets/fonts/`).
 
 ## Layout
 
