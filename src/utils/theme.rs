@@ -110,7 +110,12 @@ pub fn apply_theme(ctx: &egui::Context, preference: AppTheme) -> Palette {
 }
 
 fn apply_palette(ctx: &egui::Context, palette: &Palette) {
-    let mut style = (*ctx.style()).clone();
+    let theme = if palette.dark {
+        Theme::Dark
+    } else {
+        Theme::Light
+    };
+    let mut style = (*ctx.style_of(theme)).clone();
     style.spacing.item_spacing = Vec2::new(10.0, 8.0);
     style.spacing.button_padding = Vec2::new(12.0, 6.0);
     style.visuals.dark_mode = palette.dark;
@@ -124,5 +129,5 @@ fn apply_palette(ctx: &egui::Context, palette: &Palette) {
     style.visuals.widgets.inactive.bg_stroke.color = palette.border;
     style.visuals.selection.bg_fill = palette.accent_soft;
     style.visuals.selection.stroke.color = palette.accent;
-    ctx.set_style(style);
+    ctx.set_style_of(theme, style);
 }

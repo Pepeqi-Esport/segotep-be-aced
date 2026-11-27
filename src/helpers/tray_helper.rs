@@ -7,7 +7,7 @@
 //! can stay hidden in the tray.
 
 use std::sync::atomic::{AtomicIsize, Ordering};
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use eframe::egui;
@@ -231,7 +231,7 @@ pub fn install(ctx: &egui::Context) -> anyhow::Result<AppTray> {
     let ctx_menu = ctx.clone();
     let show_id_menu = show_id.clone();
     let quit_id_menu = quit_id.clone();
-    MenuEvent::set_event_handler(Some(move |event: MenuEvent| {
+    MenuEvent::set_event_handler(Some(Arc::new(move |event: MenuEvent| {
         if event.id == show_id_menu {
             show_window();
             push_action(TrayAction::Show);
@@ -244,7 +244,7 @@ pub fn install(ctx: &egui::Context) -> anyhow::Result<AppTray> {
                 kill_all_app_processes();
             });
         }
-    }));
+    })));
 
     Ok(AppTray {
         _tray: tray,

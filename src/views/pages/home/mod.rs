@@ -167,7 +167,7 @@ pub fn run_gui(
 }
 
 impl eframe::App for HomePage {
-    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+    fn logic(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         if self.start_in_tray {
             self.start_in_tray = false;
             ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
@@ -206,6 +206,9 @@ impl eframe::App for HomePage {
         self.tick();
         self.sync_system_theme(ctx);
         ctx.request_repaint_after(Duration::from_millis(250));
-        main_layout(ctx, self);
+    }
+
+    fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
+        main_layout(ui, self);
     }
 }

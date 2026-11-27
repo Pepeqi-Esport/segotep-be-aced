@@ -5,11 +5,11 @@ use crate::views::components::{
 };
 use crate::views::pages::HomePage;
 
-pub fn main_layout(ctx: &egui::Context, page: &mut HomePage) {
+pub fn main_layout(ui: &mut egui::Ui, page: &mut HomePage) {
     let p = page.palette();
     egui::CentralPanel::default()
         .frame(Frame::NONE.fill(p.bg).inner_margin(Margin::same(20)))
-        .show(ctx, |ui| {
+        .show(ui, |ui| {
             let logo = page.logo.clone();
             app_header(ui, page, &logo);
             ui.add_space(16.0);
