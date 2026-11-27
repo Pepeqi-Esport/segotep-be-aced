@@ -44,6 +44,10 @@ pub fn stop() {
             .output();
     }
 
+    // Daemon owns sensor-bridge; force-killing the daemon without a clean Drop can
+    // leave the bridge running. Always sweep it when stopping background work.
+    crate::services::sensor_service::kill_all_sensor_bridges();
+
     // Brief pause so the HID handle is released before GUI reopens it.
     std::thread::sleep(std::time::Duration::from_millis(200));
 }
@@ -51,8 +55,9 @@ pub fn stop() {
 fn kill_pid(pid: u32) {
     #[cfg(windows)]
     {
+        // /T = kill the process tree so sensor-bridge children die with the daemon.
         let _ = Command::new("taskkill")
-            .args(["/PID", &pid.to_string(), "/F"])
+            .args(["/PID", &pid.to_string(), "/F", "/T"])
             .creation_flags(CREATE_NO_WINDOW)
             .output();
     }

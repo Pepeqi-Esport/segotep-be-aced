@@ -207,6 +207,17 @@ fn build_and_stage_sensor_bridge(payload_dir: &Path) {
         .stdout(std::process::Stdio::null())
         .stderr(std::process::Stdio::null())
         .status();
+    // Force-kill skips LHM Close(); unload the kernel driver so .sys can be restaged.
+    let _ = Command::new("sc.exe")
+        .args(["stop", "R0sensor-bridge"])
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .status();
+    let _ = Command::new("sc.exe")
+        .args(["delete", "R0sensor-bridge"])
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .status();
 
     // Ensure official LHM deps sit beside the bridge build output.
     let official = manifest_dir.join("official");

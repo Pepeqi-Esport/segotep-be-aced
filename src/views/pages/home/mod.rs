@@ -41,6 +41,10 @@ pub struct HomePage {
     pub(crate) flash_flags: u8,
     pub(crate) status: String,
     pub(crate) quit_fully: bool,
+    /// How many UI frames the quit modal has been drawn (need a few before blocking exit).
+    pub(crate) quit_ui_frames: u32,
+    /// When the quit modal first appeared.
+    pub(crate) quit_since: Option<Instant>,
     pub(crate) tray_hidden: bool,
     pub(crate) tray: Option<AppTray>,
     pub(crate) logo: egui::TextureHandle,
@@ -105,6 +109,8 @@ impl HomePage {
             flash_flags,
             status: String::new(),
             quit_fully: false,
+            quit_ui_frames: 0,
+            quit_since: None,
             tray_hidden: false,
             tray,
             logo,
@@ -183,14 +189,17 @@ impl eframe::App for HomePage {
         if let Some(tray) = &self.tray {
             match tray_helper::poll_actions(tray) {
                 Some(TrayAction::Show) => self.resume_from_tray(),
-                Some(TrayAction::Quit) => self.request_quit(),
+                // Window hidden → no loader pass; exit immediately.
+                Some(TrayAction::Quit) if self.tray_hidden => self.finish_quit(),
+                Some(TrayAction::Quit) => self.begin_quit(),
                 None => {}
             }
         }
 
         if ctx.input(|i| i.viewport().close_requested()) {
             if self.quit_fully {
-                self.request_quit();
+                // Already shutting down — keep the window up so the loader can show.
+                ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
             } else if self.tray.is_some() {
                 ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
                 self.handoff_to_tray();
@@ -203,9 +212,23 @@ impl eframe::App for HomePage {
             }
         }
 
+        // Keep spinning the modal for a few frames / ~0.45s so the block UI is
+        // actually presented before we freeze the UI thread on cleanup.
+        if self.quit_fully {
+            ctx.request_repaint();
+            let shown_long_enough = self
+                .quit_since
+                .is_some_and(|t| t.elapsed() >= Duration::from_millis(450));
+            if self.tray_hidden || (self.quit_ui_frames >= 3 && shown_long_enough) {
+                self.finish_quit();
+            }
+        }
+
         self.tick();
         self.sync_system_theme(ctx);
-        ctx.request_repaint_after(Duration::from_millis(250));
+        if !self.quit_fully {
+            ctx.request_repaint_after(Duration::from_millis(250));
+        }
     }
 
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {

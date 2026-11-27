@@ -52,17 +52,22 @@ pub fn settings_panel(ui: &mut egui::Ui, page: &mut HomePage) {
                     .color(p.muted),
                 );
                 ui.add_space(8.0);
+                let quitting = page.quit_fully;
+                let label = if quitting {
+                    "Shutting down…"
+                } else {
+                    "Quit completely"
+                };
                 if ui
-                    .add(
-                        egui::Button::new(
-                            RichText::new("Quit completely").size(13.0).color(p.accent),
-                        )
-                        .fill(Color32::TRANSPARENT)
-                        .stroke(Stroke::new(1.0_f32, p.border)),
+                    .add_enabled(
+                        !quitting,
+                        egui::Button::new(RichText::new(label).size(13.0).color(p.accent))
+                            .fill(Color32::TRANSPARENT)
+                            .stroke(Stroke::new(1.0_f32, p.border)),
                     )
                     .clicked()
                 {
-                    page.request_quit();
+                    page.begin_quit();
                 }
             });
     });

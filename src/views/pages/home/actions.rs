@@ -97,17 +97,33 @@ impl HomePage {
         }
     }
 
-    pub(crate) fn request_quit(&mut self) {
+    /// Start quit UI (modal). Heavy work runs after the modal has painted a few frames.
+    pub(crate) fn begin_quit(&mut self) {
+        if self.quit_fully {
+            return;
+        }
         self.quit_fully = true;
+        self.quit_ui_frames = 0;
+        self.quit_since = Some(std::time::Instant::now());
+        self.status = "Shutting down…".into();
+    }
+
+    /// Blocking shutdown: sensors, kernel driver, tray, then exit.
+    pub(crate) fn finish_quit(&mut self) {
+        self.quit_fully = true;
+        // Stops the tray daemon and sweeps any sensor-bridge it owned.
         background_service::stop();
         self.screen_on = false;
         self.push_hid();
         self.device = None;
+        // Graceful bridge quit + force-kill leftovers + unload R0sensor-bridge
+        // so sensor-bridge.sys is unlocked and deletable.
         self.sensors.stop_bridge_and_sweep();
-        crate::services::sensor_service::kill_all_sensor_bridges();
+        crate::services::sensor_service::unload_sensor_bridge_driver();
         if let Some(tray_icon) = self.tray.take() {
             tray_helper::dispose(tray_icon);
         }
+        // Final sweep: sensor-bridge first, then every BeAced process.
         tray_helper::kill_all_app_processes();
         std::process::exit(0);
     }

@@ -79,5 +79,8 @@ begin
   // Stop a running instance so files can be removed.
   Exec('taskkill.exe', '/F /IM {#MyAppExeName}', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
   Exec('taskkill.exe', '/F /IM sensor-bridge.exe', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  // LHM kernel driver locks sensor-bridge.sys until unloaded.
+  Exec('sc.exe', 'stop R0sensor-bridge', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  Exec('sc.exe', 'delete R0sensor-bridge', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
   Result := True;
 end;

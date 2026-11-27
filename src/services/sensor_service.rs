@@ -1,9 +1,9 @@
-use std::io::{BufRead, BufReader};
+use std::io::{BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::sync::{Arc, Mutex};
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use serde::Deserialize;
 use sysinfo::{CpuRefreshKind, RefreshKind, System};
@@ -42,10 +42,7 @@ pub struct SensorReader {
 
 impl Drop for SensorReader {
     fn drop(&mut self) {
-        if let Some(child) = self.bridge.as_mut() {
-            let _ = child.kill();
-            let _ = child.wait();
-        }
+        self.stop_bridge();
     }
 }
 
@@ -66,15 +63,18 @@ impl SensorReader {
         }
     }
 
-    /// Kill only this reader's bridge child.
+    /// Stop this reader's bridge child.
+    ///
+    /// Prefers a graceful `"quit"` on stdin so LibreHardwareMonitor can
+    /// `Close()` and unload `R0sensor-bridge` (unlocks `sensor-bridge.sys`).
     pub fn stop_bridge(&mut self) {
         if let Some(mut child) = self.bridge.take() {
-            let _ = child.kill();
-            let _ = child.wait();
+            ask_bridge_to_quit(&mut child);
         }
     }
 
-    /// Kill this bridge, then every `sensor-bridge.exe` (Quit completely).
+    /// Kill this bridge, every `sensor-bridge.exe`, and unload the kernel driver
+    /// so `sensor-bridge.sys` can be deleted (Quit completely / uninstall).
     pub fn stop_bridge_and_sweep(&mut self) {
         self.stop_bridge();
         kill_all_sensor_bridges();
@@ -83,6 +83,7 @@ impl SensorReader {
             kill_all_sensor_bridges();
             thread::sleep(Duration::from_millis(150));
         }
+        unload_sensor_bridge_driver();
     }
 
     /// Ensure we own a live bridge. Replaces any foreign/orphan instance.
@@ -184,8 +185,9 @@ fn spawn_sensor_bridge(shared: Arc<Mutex<SensorSnapshot>>) -> Option<Child> {
     let mut cmd = Command::new(&exe);
     cmd.current_dir(exe.parent().unwrap_or_else(|| Path::new(".")))
         .stdout(Stdio::piped())
-        .stderr(Stdio::null())
-        .stdin(Stdio::null());
+        // Piped so we can send "quit" and let LHM unload the kernel driver.
+        .stdin(Stdio::piped())
+        .stderr(Stdio::null());
     // Prevent a console flash from the .NET helper (belt-and-suspenders with WinExe).
     #[cfg(windows)]
     {
@@ -248,7 +250,30 @@ fn spawn_sensor_bridge(shared: Arc<Mutex<SensorSnapshot>>) -> Option<Child> {
     Some(child)
 }
 
-/// Force-kill every `sensor-bridge.exe` (including orphans from prior sessions).
+/// Ask the owned bridge to exit cleanly (`quit` → `computer.Close()`), else force-kill.
+fn ask_bridge_to_quit(child: &mut Child) {
+    if let Some(mut stdin) = child.stdin.take() {
+        let _ = writeln!(stdin, "quit");
+        let _ = stdin.flush();
+    }
+    let deadline = Instant::now() + Duration::from_millis(2000);
+    loop {
+        match child.try_wait() {
+            Ok(Some(_)) => return,
+            Ok(None) if Instant::now() < deadline => {
+                thread::sleep(Duration::from_millis(50));
+            }
+            Ok(None) | Err(_) => {
+                let _ = child.kill();
+                let _ = child.wait();
+                return;
+            }
+        }
+    }
+}
+
+/// Force-kill every `sensor-bridge.exe` (including orphans from prior sessions)
+/// and unload the LHM kernel driver so `sensor-bridge.sys` is unlocked.
 pub fn kill_all_sensor_bridges() {
     #[cfg(windows)]
     {
@@ -264,6 +289,32 @@ pub fn kill_all_sensor_bridges() {
         let _ = Command::new("pkill")
             .args(["-f", "sensor-bridge"])
             .output();
+    }
+    unload_sensor_bridge_driver();
+}
+
+/// Stop + delete the LibreHardwareMonitor kernel service (`R0` + exe stem).
+///
+/// Force-killing `sensor-bridge.exe` skips `computer.Close()`, which leaves
+/// `R0sensor-bridge` loaded and locks `sensor-bridge.sys` on disk.
+pub fn unload_sensor_bridge_driver() {
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        // LHM service name = "R0" + assembly name (sensor-bridge → R0sensor-bridge).
+        for name in ["R0sensor-bridge"] {
+            let _ = Command::new("sc.exe")
+                .args(["stop", name])
+                .creation_flags(CREATE_NO_WINDOW)
+                .output();
+            let _ = Command::new("sc.exe")
+                .args(["delete", name])
+                .creation_flags(CREATE_NO_WINDOW)
+                .output();
+        }
+        // Give the kernel a moment to release the .sys file handle.
+        thread::sleep(Duration::from_millis(300));
     }
 }
 
