@@ -79,6 +79,16 @@ fn embed_admin_manifest(out_dir: &Path) {
             // windres is picky about separators in the generated .rc path.
             let icon_path = ico_path.to_string_lossy().replace('/', "\\");
             res.set_icon(&icon_path);
+            // Also keep a stable copy for Inno Setup (installer/be-aced.iss).
+            let installer_ico = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap())
+                .join("installer")
+                .join("app.ico");
+            if let Some(parent) = installer_ico.parent() {
+                let _ = fs::create_dir_all(parent);
+            }
+            if let Err(err) = fs::copy(&ico_path, &installer_ico) {
+                println!("cargo:warning=failed to copy installer app.ico: {err}");
+            }
         }
         Err(err) => {
             println!("cargo:warning=failed to build app icon from logo.png: {err}");

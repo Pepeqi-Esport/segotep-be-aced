@@ -45,6 +45,26 @@ Then run:
 
 Approve the UAC prompt (Administrator) — required for CPU temperature/power and reliable HID access, same as official. The app also checks for the **. NET 8 Windows Desktop** runtime used by `sensor-bridge` and can offer to install it.
 
+### Windows installer
+
+Produces `dist\BeAced-Setup-1.0.0.exe` with a folder-picker wizard (Inno Setup 7; 6 also works).
+
+1. Install [Inno Setup 7](https://jrsoftware.org/isinfo.php)
+2. From the repo root:
+
+```powershell
+.\scripts\build-installer.ps1
+```
+
+Or manually:
+
+```powershell
+cargo build --release
+& "$env:ProgramFiles\Inno Setup 7\ISCC.exe" .\installer\be-aced.iss
+```
+
+The installer copies the single release exe (sensor-bridge is still embedded and extracted on first run), creates Start Menu shortcuts, optional desktop icon, and uninstall support.
+
 ## Usage
 
 ```bash
@@ -101,6 +121,9 @@ RUST_LOG=debug cargo run --release -- daemon --once
 ├── sensor-bridge/         # .NET 8 LibreHardwareMonitor sidecar
 ├── assets/images/logo/    # app icon + in-window logo
 ├── assets/fonts/          # Inter (UI typeface) + OFL license
+├── installer/             # Inno Setup script (be-aced.iss)
+├── scripts/               # build-installer.ps1
+├── dist/                  # generated Setup.exe (gitignored)
 ├── config.json            # runtime device/sensor/theme settings
 ├── be-aced.toml           # legacy config (auto-migrated)
 ├── build.rs               # embed icon, bridge payload, admin manifest

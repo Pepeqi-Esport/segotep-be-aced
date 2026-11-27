@@ -1,4 +1,6 @@
 /target
+/dist
 /.tools/
 /sensor-bridge/bin/
 /sensor-bridge/obj/
+/installer/app.ico
