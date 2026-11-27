@@ -10,8 +10,16 @@ use std::os::windows::process::CommandExt;
 #[cfg(windows)]
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
-/// Official redirect to the latest .NET 8 Windows Desktop Runtime (x64).
+/// Official redirect to the latest .NET 8 Windows Desktop Runtime for this arch.
+#[cfg(target_arch = "x86_64")]
 const INSTALLER_URL: &str = "https://aka.ms/dotnet/8.0/windowsdesktop-runtime-win-x64.exe";
+#[cfg(target_arch = "x86")]
+const INSTALLER_URL: &str = "https://aka.ms/dotnet/8.0/windowsdesktop-runtime-win-x86.exe";
+
+#[cfg(target_arch = "x86_64")]
+const INSTALLER_FILE: &str = "windowsdesktop-runtime-8-win-x64.exe";
+#[cfg(target_arch = "x86")]
+const INSTALLER_FILE: &str = "windowsdesktop-runtime-8-win-x86.exe";
 
 pub fn is_dotnet8_desktop_installed() -> bool {
     shared_framework_dirs().iter().any(|dir| {
@@ -88,7 +96,7 @@ pub fn ensure_dotnet8_desktop() -> anyhow::Result<()> {
 fn download_installer() -> anyhow::Result<PathBuf> {
     let dir = std::env::temp_dir().join("segotep-be-aced");
     fs::create_dir_all(&dir)?;
-    let out = dir.join("windowsdesktop-runtime-8-win-x64.exe");
+    let out = dir.join(INSTALLER_FILE);
     if out.is_file() {
         let _ = fs::remove_file(&out);
     }

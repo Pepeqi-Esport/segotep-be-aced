@@ -1,0 +1,6 @@
+# Shortcuts (npm-style): cargo <alias>
+#   cargo release  → portable + installer (windows 86/64) → dist\
+# (shell aliases with "!" are not supported by current Cargo — use xtask)
+
+[alias]
+release = "run -p xtask --"

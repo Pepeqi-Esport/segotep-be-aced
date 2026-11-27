@@ -1,20 +1,35 @@
 ; BeAced Windows installer (Inno Setup 7; also works with 6)
-; Build: .\scripts\build-installer.ps1
-; Or manually after `cargo build --release`:
-;   & "C:\Program Files\Inno Setup 7\ISCC.exe" installer\be-aced.iss
+; Build: cargo release   (or .\scripts\build-installer.ps1)
+; Compile twice with /DMyArch=64 and /DMyArch=86.
+; Expects portable binaries:
+;   dist\segotep-be-aced-{version}_portable_windows_64.exe
+;   dist\segotep-be-aced-{version}_portable_windows_86.exe
+; Installed process name stays segotep-be-aced.exe (shortcuts / taskkill / autostart).
 
 #define MyAppName "BeAced"
 #ifndef MyAppVersion
   #define MyAppVersion "1.0.0"
 #endif
+#ifndef MyArch
+  #define MyArch "64"
+#endif
 #define MyAppPublisher "Segotep BeAced (community)"
 #define MyAppExeName "segotep-be-aced.exe"
+#define MyPortableName "segotep-be-aced-" + MyAppVersion + "_portable_windows_" + MyArch + ".exe"
+#define MySetupName "segotep-be-aced-" + MyAppVersion + "_installer_windows_" + MyArch
 
 [Setup]
+#if MyArch == "64"
 AppId={{A8F3C2E1-7B4D-4E9A-9C1F-2D6E8B0A5F47}
+ArchitecturesAllowed=x64compatible
+ArchitecturesInstallIn64BitMode=x64compatible
+#else
+AppId={{B9E4D3F2-8C5E-4F0B-0D2A-3E7F9C1B6A58}
+ArchitecturesAllowed=x86compatible
+#endif
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
-AppVerName={#MyAppName} {#MyAppVersion}
+AppVerName={#MyAppName} {#MyAppVersion} ({#MyArch}-bit)
 AppPublisher={#MyAppPublisher}
 DefaultDirName={autopf}\{#MyAppName}
 DefaultGroupName={#MyAppName}
@@ -24,14 +39,12 @@ DisableDirPage=no
 PrivilegesRequired=admin
 PrivilegesRequiredOverridesAllowed=dialog
 OutputDir=..\dist
-OutputBaseFilename=BeAced-Setup-{#MyAppVersion}
+OutputBaseFilename={#MySetupName}
 SetupIconFile=app.ico
 UninstallDisplayIcon={app}\{#MyAppExeName}
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
-ArchitecturesAllowed=x64compatible
-ArchitecturesInstallIn64BitMode=x64compatible
 MinVersion=10.0
 CloseApplications=yes
 RestartApplications=no
@@ -43,8 +56,8 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
 
 [Files]
-; Single release binary — sensor-bridge is embedded and extracted on first run.
-Source: "..\target\release\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
+; One arch per installer; install as segotep-be-aced.exe.
+Source: "..\dist\{#MyPortableName}"; DestDir: "{app}"; DestName: "{#MyAppExeName}"; Flags: ignoreversion
 
 [Icons]
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"

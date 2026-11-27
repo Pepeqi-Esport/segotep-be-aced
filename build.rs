@@ -127,15 +127,18 @@ fn embed_admin_manifest(out_dir: &Path) {
         return;
     }
 
-    // windows-gnu: ld drops `.rsrc` when it only comes from a static `.a`.
-    // Linking `resource.o` directly is required so the PE actually gets
-    // RT_GROUP_ICON / VERSION / manifest (otherwise Explorer shows the default icon).
+    // MSVC: winres emits resource.lib and already prints cargo:rustc-link-* for it.
+    // GNU: ld drops `.rsrc` from a static `.a` unless we force-link resource.o / whole-archive.
+    let env = env::var("CARGO_CFG_TARGET_ENV").unwrap_or_default();
+    if env == "msvc" {
+        return;
+    }
+
     let resource_obj = out_dir.join("resource.o");
     if resource_obj.is_file() {
         let path = resource_obj.to_string_lossy().replace('/', "\\");
         println!("cargo:rustc-link-arg={path}");
     } else {
-        // MSVC / some toolchains emit libresource.a instead — force whole-archive like s3-manager.
         let lib = out_dir.join("libresource.a");
         if lib.is_file() {
             println!("cargo:rustc-link-arg=-Wl,--whole-archive");
